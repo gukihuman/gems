@@ -14,7 +14,6 @@ npm run build
 
 ```json
 {
-  "gemsById": {},
   "gemId": "0185318306514327",
   "color": "RED",
   "x": 0,

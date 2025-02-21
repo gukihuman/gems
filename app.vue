@@ -3,7 +3,10 @@
     <div class="bg-slate-200 max-w-[500px] w-full rounded-lg shadow-md p-1">
       <div
         ref="gridRef"
-        class="relative grid aspect-square grid-cols-9 bg-slate-200 overflow-hidden"
+        class="relative grid aspect-square bg-slate-200 overflow-hidden"
+        :style="{
+          'grid-template-columns': `repeat(${gridSize}, minmax(0, 1fr))`,
+        }"
       >
         <div
           v-for="(_, i) in grid"
@@ -33,8 +36,10 @@
 </template>
 
 <script setup>
-import { ref } from "vue"
 import newId from "./utils/newId"
+import move from "./utils/move"
+
+const GRID_SIZE = 9
 const GEMS_COLORS = ["RED", "GREEN", "BLUE", "PURPLE"]
 const GEM_CLASSES = {
   RED: "bg-red-600 border-red-800",
@@ -44,21 +49,21 @@ const GEM_CLASSES = {
 }
 const GEM_SPEED = 10
 class Cell {
-  constructor(gemsById) {
-    this.gemsById = gemsById
+  constructor() {
     this.gemId = null
     this.x = 0
     this.y = 0
   }
   get color() {
-    return this.gemsById[this.gemId]?.color || null
+    return gemsById.value[this.gemId]?.color || null
   }
 }
 const gridRef = ref(null)
 
 const gemsById = ref({})
-const grid = ref(Array.from(Array(81), () => new Cell(gemsById.value)))
+const grid = ref(Array.from(Array(81), () => new Cell()))
 const cellSize = ref(0)
+const gridSize = ref(GRID_SIZE)
 
 onMounted(() => {
   setGridCoordinates()
@@ -67,15 +72,24 @@ onMounted(() => {
 })
 function setGridCoordinates() {
   const { width } = gridRef.value.getBoundingClientRect()
-  cellSize.value = width / 9
-  grid.value.forEach((cell, index) => {
-    cell.x = cellSize.value * (index % 9)
-    cell.y = cellSize.value * Math.floor(index / 9)
+  cellSize.value = width / gridSize.value
+  grid.value.forEach((cell, i) => {
+    cell.x = getXByIndex(i)
+    cell.y = getYByIndex(i)
   })
   Object.values(gemsById.value).forEach((gem) => {
     gem.targetX = grid.value[gem.gridIndex].x
     gem.targetY = grid.value[gem.gridIndex].y
   })
+}
+function getXByIndex(i) {
+  return cellSize.value * (i % gridSize.value)
+}
+function getYByIndex(i) {
+  return cellSize.value * Math.floor(i / gridSize.value)
+}
+function getBaseYByIndex(i) {
+  return -(cellSize.value * (gridSize.value - Math.floor(i / gridSize.value)))
 }
 function gameLoop() {
   generateGems()
@@ -83,14 +97,14 @@ function gameLoop() {
   requestAnimationFrame(gameLoop)
 }
 function generateGems() {
-  grid.value.forEach((cell, index) => {
+  grid.value.forEach((cell, i) => {
     if (cell.gemId) return
     const id = newId()
     gemsById.value[id] = {
-      gridIndex: index,
+      gridIndex: i,
       color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
-      x: ref((index % 9) * cellSize.value),
-      y: ref(-(cellSize.value * (9 - Math.floor(index / 9)))),
+      x: getXByIndex(i),
+      y: getBaseYByIndex(i),
       targetX: cell.x,
       targetY: cell.y,
     }
@@ -99,16 +113,8 @@ function generateGems() {
 }
 function updateGemPositions() {
   Object.values(gemsById.value).forEach((gem) => {
-    if (gem.x < gem.targetX) {
-      gem.x = Math.min(gem.x + GEM_SPEED, gem.targetX)
-    } else if (gem.x > gem.targetX) {
-      gem.x = Math.max(gem.x - GEM_SPEED, gem.targetX)
-    }
-    if (gem.y < gem.targetY) {
-      gem.y = Math.min(gem.y + GEM_SPEED, gem.targetY)
-    } else if (gem.y > gem.targetY) {
-      gem.y = Math.max(gem.y - GEM_SPEED, gem.targetY)
-    }
+    gem.x = move(gem.x, gem.targetX, GEM_SPEED)
+    gem.y = move(gem.y, gem.targetY, GEM_SPEED)
   })
 }
 </script>
