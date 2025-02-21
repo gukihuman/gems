@@ -31,7 +31,9 @@ npm run build
     "x": 0,
     "y": 0,
     "targetX": 0,
-    "targetY": 0
+    "targetY": 0,
+    "moveAnimation": false,
+    "element": null
   },
   "7521372547236283": {
     "gridIndex": 1,
@@ -39,7 +41,9 @@ npm run build
     "x": 0,
     "y": 0,
     "targetX": 0,
-    "targetY": 0
+    "targetY": 0,
+    "moveAnimation": false,
+    "element": null
   }
 }
 ```

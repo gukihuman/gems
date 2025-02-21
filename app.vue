@@ -1,9 +1,9 @@
 <template>
-  <div class="flex justify-center items-center h-screen bg-slate-400">
-    <div class="bg-slate-200 max-w-[500px] w-full rounded-lg shadow-md p-1">
+  <div class="flex justify-center items-center h-screen bg-slate-500">
+    <div class="bg-slate-600 max-w-[500px] w-full rounded-lg shadow-md p-1">
       <div
         ref="gridRef"
-        class="relative grid aspect-square bg-slate-200 overflow-hidden"
+        class="relative grid aspect-square bg-slate-600 overflow-hidden"
         :style="{
           'grid-template-columns': `repeat(${gridSize}, minmax(0, 1fr))`,
         }"
@@ -11,12 +11,13 @@
         <div
           v-for="(_, i) in grid"
           :key="i"
-          class="border-2 border-slate-200 rounded-md bg-slate-300"
+          class="border-2 border-slate-600 rounded-md bg-slate-700"
         ></div>
         <div
           v-for="(gem, i) in gemsById"
           :key="i"
           class="absolute"
+          :ref="(el) => (gem.element = el)"
           :style="{
             left: gem.x + 'px',
             top: gem.y + 'px',
@@ -38,17 +39,19 @@
 <script setup>
 import anime from "animejs"
 import newId from "./utils/newId"
+import { nextTick } from "vue"
 
-const DISTANCE_PER_SECOND = 250
 const GRID_SIZE = 8
-const GEMS_COLORS = ["RED", "GREEN", "BLUE", "PURPLE", "YELLOW"]
+const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
 const GEM_CLASSES = {
-  RED: "bg-orange-600 border-orange-700",
-  GREEN: "bg-lime-600 border-lime-700",
-  BLUE: "bg-indigo-500 border-indigo-600",
-  PURPLE: "bg-purple-600 border-purple-900",
-  YELLOW: "bg-yellow-500 border-yellow-600",
+  ORANGE: "orange",
+  LIME: "lime",
+  INDIGO: "indigo",
+  PURPLE: "purple",
+  YELLOW: "yellow",
 }
+const DISTANCE_PER_SECOND = 200
+const REMOVE_DELAY = 350
 class Cell {
   constructor() {
     this.gemId = null
@@ -71,13 +74,10 @@ onMounted(() => {
   addEventListener("resize", setGridCoordinates)
   requestAnimationFrame(gameLoop)
   setTimeout(() => {
-    delete gemsById.value[grid.value[39].gemId]
-    delete gemsById.value[grid.value[47].gemId]
-    delete gemsById.value[grid.value[55].gemId]
-    grid.value[39].gemId = null
-    grid.value[47].gemId = null
-    grid.value[55].gemId = null
-  }, 2000)
+    removeGem(grid.value[39].gemId)
+    removeGem(grid.value[47].gemId)
+    removeGem(grid.value[55].gemId)
+  }, 3000)
 })
 
 function gameLoop() {
@@ -138,25 +138,79 @@ function generateGems() {
         targetX: grid.value[i].x,
         targetY: grid.value[i].y,
         animation: false,
+        element: null,
       }
       animate(gemsById.value[id])
     }
   }
 }
 function animate(gem) {
-  if (gem.animation) anime.remove(gem)
+  if (gem.animation) {
+    anime.remove(gem)
+    anime.remove(gem.element)
+  }
   gem.animation = true
   let distance = Math.max(
     Math.abs(gem.targetX - gem.x),
     Math.abs(gem.targetY - gem.y)
   )
-  anime({
-    targets: gem,
-    x: gem.targetX,
-    y: gem.targetY,
-    duration: 1000 * (distance / DISTANCE_PER_SECOND),
-    easing: "easeInOutQuad",
-    complete: () => (gem.animation = false),
+  const duration = 1000 * (distance / DISTANCE_PER_SECOND)
+  nextTick(() => {
+    anime({
+      targets: gem,
+      x: gem.targetX,
+      y: gem.targetY,
+      duration,
+      delay: REMOVE_DELAY,
+      easing: "easeInOutExpo",
+      complete: () => (gem.animation = false),
+    })
+  })
+}
+function removeGem(gemId) {
+  const gem = gemsById.value[gemId]
+  grid.value[gem.gridIndex].gemId = null
+  nextTick(() => {
+    anime({
+      targets: gem.element,
+      scale: 0,
+      duration: REMOVE_DELAY,
+      easing: "easeInSine",
+      complete: () => delete gemsById.value[gemId],
+    })
   })
 }
 </script>
+
+<style>
+.orange {
+  --dark: #df7103;
+  --light: #ff9800;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.lime {
+  --dark: #64b506;
+  --light: #98df25;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.indigo {
+  --dark: #5353f6;
+  --light: #7173ff;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.purple {
+  --dark: #7e22ce;
+  --light: #a855f7;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.yellow {
+  --dark: #ffbf00;
+  --light: #ffe978;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+</style>
