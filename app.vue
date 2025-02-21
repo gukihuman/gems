@@ -47,7 +47,6 @@ const GEM_CLASSES = {
   BLUE: "bg-blue-600 border-blue-800",
   PURPLE: "bg-purple-600 border-purple-800",
 }
-const GEM_SPEED = 10
 class Cell {
   constructor() {
     this.gemId = null
@@ -69,7 +68,21 @@ onMounted(() => {
   setGridCoordinates()
   addEventListener("resize", setGridCoordinates)
   requestAnimationFrame(gameLoop)
+  setTimeout(() => {
+    delete gemsById.value[grid.value[39].gemId]
+    delete gemsById.value[grid.value[48].gemId]
+    delete gemsById.value[grid.value[57].gemId]
+    grid.value[39].gemId = null
+    grid.value[48].gemId = null
+    grid.value[57].gemId = null
+  }, 2000)
 })
+
+function gameLoop() {
+  generateGems()
+  updateGemPositions()
+  requestAnimationFrame(gameLoop)
+}
 function setGridCoordinates() {
   const { width } = gridRef.value.getBoundingClientRect()
   cellSize.value = width / gridSize.value
@@ -82,39 +95,59 @@ function setGridCoordinates() {
     gem.targetY = grid.value[gem.gridIndex].y
   })
 }
+function generateGems() {
+  for (let y = 0; y < gridSize.value; y++) {
+    let emptyCount = 0
+    for (let i = grid.value.length - 1 - y; i >= 0; i -= gridSize.value) {
+      const cell = grid.value[i]
+      if (cell.gemId) continue
+
+      let isUpGem = false
+      let emptyCountTemp = 0
+      for (let iUp = i; iUp >= 0; iUp -= 9) {
+        const upCell = grid.value[iUp]
+        if (upCell.gemId) {
+          isUpGem = true
+          const gemId = upCell.gemId
+          cell.gemId = gemId
+          upCell.gemId = null
+          const upGem = gemsById.value[gemId]
+          upGem.targetX = cell.x
+          upGem.targetY = cell.y
+          break
+        } else {
+          emptyCountTemp++
+          emptyCount = Math.max(emptyCount, emptyCountTemp)
+        }
+      }
+      if (!isUpGem) {
+        const id = newId()
+        gemsById.value[id] = {
+          gridIndex: i,
+          color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
+          x: getXByIndex(i),
+          y: getBaseYByIndex(i, emptyCount),
+          targetX: cell.x,
+          targetY: cell.y,
+        }
+        cell.gemId = id
+      }
+    }
+  }
+}
+function updateGemPositions() {
+  Object.values(gemsById.value).forEach((gem) => {
+    gem.x = move(gem.x, gem.targetX)
+    gem.y = move(gem.y, gem.targetY)
+  })
+}
 function getXByIndex(i) {
   return cellSize.value * (i % gridSize.value)
 }
 function getYByIndex(i) {
   return cellSize.value * Math.floor(i / gridSize.value)
 }
-function getBaseYByIndex(i) {
-  return -(cellSize.value * (gridSize.value - Math.floor(i / gridSize.value)))
-}
-function gameLoop() {
-  generateGems()
-  updateGemPositions()
-  requestAnimationFrame(gameLoop)
-}
-function generateGems() {
-  grid.value.forEach((cell, i) => {
-    if (cell.gemId) return
-    const id = newId()
-    gemsById.value[id] = {
-      gridIndex: i,
-      color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
-      x: getXByIndex(i),
-      y: getBaseYByIndex(i),
-      targetX: cell.x,
-      targetY: cell.y,
-    }
-    cell.gemId = id
-  })
-}
-function updateGemPositions() {
-  Object.values(gemsById.value).forEach((gem) => {
-    gem.x = move(gem.x, gem.targetX, GEM_SPEED)
-    gem.y = move(gem.y, gem.targetY, GEM_SPEED)
-  })
+function getBaseYByIndex(i, emptyCount) {
+  return -(cellSize.value * (emptyCount - Math.floor(i / gridSize.value)))
 }
 </script>
