@@ -14,11 +14,11 @@ npm run build
 
 ```json
 {
-  "x": 0,
-  "y": 0,
   "gemsById": {},
   "gemId": "0185318306514327",
-  "color": "RED"
+  "color": "RED",
+  "x": 0,
+  "y": 0
 }
 ```
 
@@ -27,14 +27,20 @@ npm run build
 ```json
 {
   "0185318306514327": {
+    "gridIndex": 0,
+    "color": "RED",
     "x": 0,
     "y": 0,
-    "color": "RED"
+    "targetX": 0,
+    "targetY": 0
   },
   "7521372547236283": {
+    "gridIndex": 1,
+    "color": "GREEN",
     "x": 0,
     "y": 0,
-    "color": "GREEN"
+    "targetX": 0,
+    "targetY": 0
   }
 }
 ```
