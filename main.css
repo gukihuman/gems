@@ -1,3 +1,42 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.orange {
+  --dark: #e86224;
+  --light: #ff963f;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.lime {
+  --dark: #64b506;
+  --light: #98df25;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.indigo {
+  --dark: #3180ef;
+  --light: #44baff;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.purple {
+  --dark: #e355c9;
+  --light: #ff91ff;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.yellow {
+  --dark: #ffbf00;
+  --light: #ffe978;
+  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
+  border-color: var(--light);
+}
+.bg-circles {
+  background-image: radial-gradient(
+    circle at 50% 50%,
+    rgba(0, 0, 0, 0.05) 2px,
+    transparent 1px
+  );
+  background-size: 16px 16px;
+}

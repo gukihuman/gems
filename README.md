@@ -15,7 +15,6 @@ npm run build
 ```json
 {
   "gemId": "0185318306514327",
-  "color": "RED",
   "x": 0,
   "y": 0
 }
@@ -32,7 +31,7 @@ npm run build
     "y": 0,
     "targetX": 0,
     "targetY": 0,
-    "moveAnimation": false,
+    "animation": false,
     "element": null
   },
   "7521372547236283": {
@@ -42,7 +41,7 @@ npm run build
     "y": 0,
     "targetX": 0,
     "targetY": 0,
-    "moveAnimation": false,
+    "animation": false,
     "element": null
   }
 }

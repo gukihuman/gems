@@ -1,6 +1,10 @@
+/** x and y are always pixel coordinates, grid uses flat indices */
+
 <template>
-  <div class="flex justify-center items-center h-screen bg-slate-500">
-    <div class="bg-slate-600 max-w-[500px] w-full rounded-lg shadow-md p-1">
+  <div
+    class="flex justify-center items-center h-screen bg-slate-500 bg-circles"
+  >
+    <div class="bg-slate-600 max-w-[500px] w-full rounded-lg p-1 shadow-xl">
       <div
         ref="gridRef"
         class="relative grid aspect-square bg-slate-600 overflow-hidden"
@@ -11,12 +15,12 @@
         <div
           v-for="(_, i) in grid"
           :key="i"
-          class="border-2 border-slate-600 rounded-md bg-slate-700"
+          class="border-[3px] border-slate-600 rounded-md bg-slate-700"
         ></div>
         <div
           v-for="(gem, i) in gemsById"
           :key="i"
-          class="absolute"
+          class="absolute group"
           :ref="(el) => (gem.element = el)"
           :style="{
             left: gem.x + 'px',
@@ -27,8 +31,14 @@
           }"
         >
           <div
-            class="border-4 rounded-full size-full"
-            :class="GEM_CLASSES[gem.color]"
+            class="border-4 rounded-full size-full duration-200 ease-out"
+            :class="[
+              GEM_CLASSES[gem.color],
+              {
+                'group-hover:brightness-150 group-hover:scale-[1.2]':
+                  !gem.animation,
+              },
+            ]"
           ></div>
         </div>
       </div>
@@ -41,8 +51,9 @@ import anime from "animejs"
 import newId from "./utils/newId"
 import { nextTick } from "vue"
 
-const GRID_SIZE = 8
-const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
+const GRID_SIZE = 9
+// const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
+const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO"]
 const GEM_CLASSES = {
   ORANGE: "orange",
   LIME: "lime",
@@ -50,38 +61,31 @@ const GEM_CLASSES = {
   PURPLE: "purple",
   YELLOW: "yellow",
 }
-const DISTANCE_PER_SECOND = 200
-const REMOVE_DELAY = 350
-class Cell {
-  constructor() {
-    this.gemId = null
-    this.x = 0
-    this.y = 0
-  }
-  get color() {
-    return gemsById.value[this.gemId]?.color || null
-  }
-}
+const DISTANCE_PER_SECOND = 150
+const REMOVE_DELAY = 500
+
 const gridRef = ref(null)
 
 const gemsById = ref({})
 const cellSize = ref(0)
 const gridSize = ref(GRID_SIZE)
-const grid = ref(Array.from(Array(gridSize.value ** 2), () => new Cell()))
+const grid = ref(
+  Array.from(Array(gridSize.value ** 2), () => ({
+    gemId: null,
+    x: 0,
+    y: 0,
+  }))
+)
 
 onMounted(() => {
   setGridCoordinates()
   addEventListener("resize", setGridCoordinates)
   requestAnimationFrame(gameLoop)
-  setTimeout(() => {
-    removeGem(grid.value[39].gemId)
-    removeGem(grid.value[47].gemId)
-    removeGem(grid.value[55].gemId)
-  }, 3000)
 })
 
 function gameLoop() {
   generateGems()
+  checkMatches()
   requestAnimationFrame(gameLoop)
 }
 function setGridCoordinates() {
@@ -92,8 +96,9 @@ function setGridCoordinates() {
     cell.y = cellSize.value * Math.floor(i / gridSize.value)
   })
   Object.values(gemsById.value).forEach((gem) => {
-    gem.targetX = grid.value[gem.gridIndex].x
-    gem.targetY = grid.value[gem.gridIndex].y
+    const cell = grid.value[gem.gridIndex]
+    gem.targetX = cell.x
+    gem.targetY = cell.y
   })
 }
 function generateGems() {
@@ -129,14 +134,15 @@ function generateGems() {
     for (let row = 0; row < emptyCount; row++) {
       let i = row * gridSize.value + column
       const id = newId()
-      grid.value[i].gemId = id
+      const cell = grid.value[i]
+      cell.gemId = id
       gemsById.value[id] = {
         gridIndex: i,
         color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
         x: cellSize.value * (i % gridSize.value),
         y: -(cellSize.value * (emptyCount - row)),
-        targetX: grid.value[i].x,
-        targetY: grid.value[i].y,
+        targetX: cell.x,
+        targetY: cell.y,
         animation: false,
         element: null,
       }
@@ -170,47 +176,58 @@ function animate(gem) {
 function removeGem(gemId) {
   const gem = gemsById.value[gemId]
   grid.value[gem.gridIndex].gemId = null
+  gem.animation = true
   nextTick(() => {
     anime({
       targets: gem.element,
-      scale: 0,
-      duration: REMOVE_DELAY,
-      easing: "easeInSine",
+      scale: [
+        { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
+        { value: 0, duration: REMOVE_DELAY * 0.7, easing: "easeInQuad" },
+      ],
+      opacity: [{ value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" }],
       complete: () => delete gemsById.value[gemId],
     })
   })
 }
+function checkMatches() {
+  const matchedGemIds = new Set()
+  for (let row = 0; row < gridSize.value; row++) {
+    const startIndex = row * gridSize.value
+    checkLine(matchedGemIds, startIndex, 1)
+  }
+  for (let startIndex = 0; startIndex < gridSize.value; startIndex++) {
+    checkLine(matchedGemIds, startIndex, gridSize.value)
+  }
+  matchedGemIds.forEach((gemId) => removeGem(gemId))
+}
+function checkLine(matchedGemIds, startIndex, step) {
+  let singleColorLine = [] // gemIds
+  let currentColor = null
+  let matchCount = 1
+  for (let i = 0; i < gridSize.value; i++) {
+    const gemId = grid.value[startIndex + i * step].gemId
+    const gem = gemsById.value[gemId]
+    if (gem.animation) {
+      resolveLine(matchedGemIds, singleColorLine, matchCount)
+      singleColorLine = []
+      currentColor = null
+      matchCount = 1
+      continue
+    }
+    if (gem.color === currentColor) {
+      singleColorLine.push(gemId)
+      matchCount++
+    } else {
+      resolveLine(matchedGemIds, singleColorLine, matchCount)
+      singleColorLine = [gemId]
+      currentColor = gem.color
+      matchCount = 1
+    }
+  }
+  resolveLine(matchedGemIds, singleColorLine, matchCount)
+}
+function resolveLine(matchedGemIds, singleColorLine, matchCount) {
+  if (matchCount < 3) return
+  singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
+}
 </script>
-
-<style>
-.orange {
-  --dark: #df7103;
-  --light: #ff9800;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
-}
-.lime {
-  --dark: #64b506;
-  --light: #98df25;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
-}
-.indigo {
-  --dark: #5353f6;
-  --light: #7173ff;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
-}
-.purple {
-  --dark: #7e22ce;
-  --light: #a855f7;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
-}
-.yellow {
-  --dark: #ffbf00;
-  --light: #ffe978;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
-}
-</style>
