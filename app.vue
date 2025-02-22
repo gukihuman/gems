@@ -290,8 +290,12 @@ function updateActiveGemCoordinates(gemId, mouseX, mouseY) {
         adjacentGemId.value = adjacentCell.gemId
         const adjacentGem = gemsById.value[adjacentCell.gemId]
         if (
-          checkPossibleMatch(adjacentGridIndex, gem.color) ||
-          checkPossibleMatch(gem.gridIndex, adjacentGem.color)
+          checkPossibleMatch(adjacentGridIndex, gem.color, gemId) ||
+          checkPossibleMatch(
+            gem.gridIndex,
+            adjacentGem.color,
+            adjacentGemId.value
+          )
         ) {
           const currentCell = grid.value[gem.gridIndex]
 
@@ -323,29 +327,31 @@ function checkBorder(index, adjacentIndex) {
   if (currentCol === gridSize.value - 1 && adjacentCol === 0) return
   return true
 }
-function checkPossibleMatch(index, color) {
+function checkPossibleMatch(index, color, check) {
   const row = Math.floor(index / gridSize.value)
   const col = index % gridSize.value
   let left = col - 1
   let right = col + 1
   let top = row - 1
   let bottom = row + 1
-  while (left >= 0 && getColorAt(row, left) === color) left--
-  while (right < gridSize.value && getColorAt(row, right) === color) right++
-  while (top >= 0 && getColorAt(top, col) === color) top--
-  while (bottom < gridSize.value && getColorAt(bottom, col) === color) bottom++
+  while (left >= 0 && getColorAt(row, left, check) === color) left--
+  while (right < gridSize.value && getColorAt(row, right, check) === color)
+    right++
+  while (top >= 0 && getColorAt(top, col, check) === color) top--
+  while (bottom < gridSize.value && getColorAt(bottom, col, check) === color)
+    bottom++
   const horizontalLength = right - left - 1
   const verticalLength = bottom - top - 1
   return horizontalLength >= MATCH || verticalLength >= MATCH
 }
 
-function getColorAt(row, col) {
+function getColorAt(row, col, check) {
   if (row < 0 || row >= gridSize.value || col < 0 || col >= gridSize.value) {
     return
   }
   const index = row * gridSize.value + col
   const gemId = grid.value[index].gemId
-  if (!gemId || gemId === activeGemId.value) return
+  if (!gemId || gemId === check) return
   return gemsById.value[gemId].color
 }
 function onMouseDown(gemId) {
