@@ -141,6 +141,7 @@ function generateGems() {
       }
     }
     unstableColumnGems.forEach((gemId, row) => {
+      resetIfActive(gemId)
       const reverseRow = gridSize.value - 1 - row - stableGems
       const i = reverseRow * gridSize.value + column
       grid.value[i].gemId = gemId
@@ -209,6 +210,7 @@ function animateResetActive(gem) {
   })
 }
 function removeGem(gemId) {
+  resetIfActive(gemId)
   const gem = gemsById.value[gemId]
   grid.value[gem.gridIndex].gemId = null
   gem.animation = true
@@ -287,7 +289,7 @@ function onMouseDown(gemId) {
     activationTime = Date.now()
     gem.element.style.zIndex = "10"
   } else {
-    resetActive(gemsById.value[activeGemId.value])
+    resetIfActive(activeGemId.value)
   }
 }
 function onMouseMove(event) {
@@ -300,14 +302,14 @@ function onMouseMove(event) {
 function onMouseUp() {
   if (!activeGemId.value) return
   const { distance } = mouseGemDistance(gemsById.value[activeGemId.value])
-  if (Date.now() - activationTime < CLICK_DELAY && distance < DRAG_DISTANCE) {
-    return
+  if (Date.now() - activationTime > CLICK_DELAY || distance > DRAG_DISTANCE) {
+    resetIfActive(activeGemId.value)
   }
-  const activeGem = gemsById.value[activeGemId.value]
-  resetActive(activeGem)
 }
-function resetActive(gem) {
-  animateResetActive(gem)
+function resetIfActive(gemId) {
+  if (gemId !== activeGemId.value) return
+  const activeGem = gemsById.value[gemId]
+  animateResetActive(activeGem)
   activeGemId.value = null
   activationTime = null
 }
