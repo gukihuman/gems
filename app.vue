@@ -41,7 +41,7 @@
               GEM_CLASSES[gem.color],
               {
                 'group-hover:brightness-150 group-hover:scale-[1.2]':
-                  !activeGemId && !gem.animation,
+                  !activeGemId && gem.interactive,
                 'scale-[0.8] brightness-150': id === activeGemId,
               },
             ]"
@@ -68,8 +68,8 @@ const GEM_CLASSES = {
 }
 const DISTANCE_PER_SECOND = 150
 const REMOVE_DELAY = 500
-const DRAG_DISTANCE = 40
 const CLICK_DELAY = 300
+const DRAG_DISTANCE = 0.7 // cell size ratio
 
 const gridRef = ref(null)
 
@@ -87,6 +87,8 @@ const activeGemId = ref(null)
 const mouse = { x: 0, y: 0 }
 let activationTime = null
 let gridRect = null
+
+const dragDistance = computed(() => cellSize.value * DRAG_DISTANCE)
 
 onMounted(() => {
   setGridCoordinates()
@@ -166,7 +168,7 @@ function generateGems() {
         y: -(cellSize.value * (emptyCount - row)) + cellSize.value / 2,
         targetX: cell.x,
         targetY: cell.y,
-        animation: false,
+        interactive: true,
         element: null,
       }
       animateFall(gemsById.value[id])
@@ -174,7 +176,7 @@ function generateGems() {
   }
 }
 function animateFall(gem) {
-  gem.animation = true
+  gem.interactive = false
   let distance = Math.max(
     Math.abs(gem.targetX - gem.x),
     Math.abs(gem.targetY - gem.y)
@@ -188,12 +190,11 @@ function animateFall(gem) {
       duration,
       delay: REMOVE_DELAY,
       easing: "easeInOutExpo",
-      complete: () => (gem.animation = false),
+      complete: () => (gem.interactive = true),
     })
   })
 }
 function animateResetActive(gem) {
-  gem.animation = true
   nextTick(() => {
     anime({
       targets: gem,
@@ -202,9 +203,7 @@ function animateResetActive(gem) {
       duration: 300,
       easing: "easeOutQuad",
       complete: () => {
-        if (!gem) return // might be removed
-        gem.animation = false
-        gem.element.style.zIndex = "0"
+        if (gem) gem.element.style.zIndex = "0" // check for already removed
       },
     })
   })
@@ -213,7 +212,7 @@ function removeGem(gemId) {
   resetIfActive(gemId)
   const gem = gemsById.value[gemId]
   grid.value[gem.gridIndex].gemId = null
-  gem.animation = true
+  gem.interactive = false
   nextTick(() => {
     anime({
       targets: gem.element,
@@ -244,7 +243,7 @@ function checkLine(matchedGemIds, startIndex, step) {
   for (let i = 0; i < gridSize.value; i++) {
     const gemId = grid.value[startIndex + i * step].gemId
     const gem = gemsById.value[gemId]
-    if (gem.animation) {
+    if (!gem.interactive) {
       resolveLine(matchedGemIds, singleColorLine, matchCount)
       singleColorLine = []
       currentColor = null
@@ -269,25 +268,27 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
 }
 function updateActiveGemCoordinates(gem, mouseX, mouseY) {
   const { dx, dy, distance } = mouseGemDistance(gem)
-  if (distance < DRAG_DISTANCE) {
+  if (distance < dragDistance.value) {
     gem.x = mouseX
     gem.y = mouseY
   } else {
     const angle = Math.atan2(dy, dx)
-    const constrainedX = gem.targetX + DRAG_DISTANCE * Math.cos(angle)
-    const constrainedY = gem.targetY + DRAG_DISTANCE * Math.sin(angle)
+    const constrainedX = gem.targetX + dragDistance.value * Math.cos(angle)
+    const constrainedY = gem.targetY + dragDistance.value * Math.sin(angle)
     gem.x = constrainedX
     gem.y = constrainedY
   }
 }
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
-  if (gem.animation) return
+  if (!gem.interactive) return
   if (!activeGemId.value) {
     activeGemId.value = gemId
     updateActiveGemCoordinates(gemsById.value[gemId], mouse.x, mouse.y)
     activationTime = Date.now()
     gem.element.style.zIndex = "10"
+    console.log("make active")
+    anime.remove(gemsById.value[activeGemId.value])
   } else {
     resetIfActive(activeGemId.value)
   }
@@ -302,7 +303,10 @@ function onMouseMove(event) {
 function onMouseUp() {
   if (!activeGemId.value) return
   const { distance } = mouseGemDistance(gemsById.value[activeGemId.value])
-  if (Date.now() - activationTime > CLICK_DELAY || distance > DRAG_DISTANCE) {
+  if (
+    Date.now() - activationTime > CLICK_DELAY ||
+    distance > dragDistance.value
+  ) {
     resetIfActive(activeGemId.value)
   }
 }
