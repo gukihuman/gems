@@ -59,7 +59,6 @@ import { nextTick } from "vue"
 
 const GRID_SIZE = 9
 const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
-// const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO"]
 const GEM_CLASSES = {
   ORANGE: "orange",
   LIME: "lime",
@@ -70,7 +69,7 @@ const GEM_CLASSES = {
 const DISTANCE_PER_SECOND = 150
 const REMOVE_DELAY = 500
 const DRAG_DISTANCE = 40
-const CLICK_DELAY = 260
+const CLICK_DELAY = 300
 
 const gridRef = ref(null)
 
@@ -125,16 +124,24 @@ function generateGems() {
     }
     if (!emptyCells) continue
 
-    let columnGems = []
+    let unstableColumnGems = []
+    let stableGems = 0 // bottom of line
+    let stableSoFar = true
     for (let row = gridSize.value - 1; row >= 0; row--) {
       const i = row * gridSize.value + column
-      if (grid.value[i].gemId) {
-        columnGems.push(grid.value[i].gemId)
+      if (stableSoFar && grid.value[i].gemId) {
+        stableGems++
+        continue
+      }
+      if (!grid.value[i].gemId) {
+        stableSoFar = false
+      } else {
+        unstableColumnGems.push(grid.value[i].gemId)
         grid.value[i].gemId = null
       }
     }
-    columnGems.forEach((gemId, row) => {
-      const reverseRow = gridSize.value - 1 - row
+    unstableColumnGems.forEach((gemId, row) => {
+      const reverseRow = gridSize.value - 1 - row - stableGems
       const i = reverseRow * gridSize.value + column
       grid.value[i].gemId = gemId
       const gem = gemsById.value[gemId]
@@ -144,7 +151,7 @@ function generateGems() {
       animateFall(gem)
     })
 
-    const emptyCount = gridSize.value - columnGems.length
+    const emptyCount = gridSize.value - unstableColumnGems.length - stableGems
 
     for (let row = 0; row < emptyCount; row++) {
       let i = row * gridSize.value + column
