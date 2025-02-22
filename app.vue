@@ -58,6 +58,7 @@ import newId from "./utils/newId"
 import { nextTick } from "vue"
 
 const GRID_SIZE = 9
+const MATCH = 3
 const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
 const GEM_CLASSES = {
   ORANGE: "orange",
@@ -264,7 +265,7 @@ function checkLine(matchedGemIds, startIndex, step) {
   resolveLine(matchedGemIds, singleColorLine, matchCount)
 }
 function resolveLine(matchedGemIds, singleColorLine, matchCount) {
-  if (matchCount < 3) return
+  if (matchCount < MATCH) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
 function updateActiveGemCoordinates(gem, mouseX, mouseY) {
@@ -284,11 +285,36 @@ function updateActiveGemCoordinates(gem, mouseX, mouseY) {
     let indexDifference
     if (Math.abs(dx) > Math.abs(dy)) indexDifference = dx > 0 ? 1 : -1
     else indexDifference = dy > 0 ? gridSize.value : -gridSize.value
-    const cell = grid.value[gem.gridIndex + indexDifference]
+    const adjacentGridIndex = gem.gridIndex + indexDifference
+    const cell = grid.value[adjacentGridIndex]
     if (cell && cell.gemId) adjacentGemId.value = cell.gemId
+    console.log(checkPossibleMatch(adjacentGridIndex, gem.color))
   } else {
     adjacentGemId.value = null
   }
+}
+function checkPossibleMatch(gridIndex, color) {
+  let xMatches =
+    checkMatchIntoDirection(gridIndex, 1, color) +
+    checkMatchIntoDirection(gridIndex, -1, color)
+  let yMatches =
+    checkMatchIntoDirection(gridIndex, gridSize.value, color) +
+    checkMatchIntoDirection(gridIndex, -gridSize.value, color)
+  if (1 + xMatches >= MATCH || 1 + yMatches >= MATCH) return true
+  else return false
+}
+function checkMatchIntoDirection(gridIndex, indexDifference, color) {
+  let count = 0
+  if (checkCellMatch(gridIndex + indexDifference, color)) {
+    count++
+    if (checkCellMatch(gridIndex + indexDifference * 2, color)) count++
+  }
+  return count
+}
+function checkCellMatch(gridIndex, color) {
+  const cell = grid.value[gridIndex]
+  if (!cell || !cell.gemId || cell.gemId === activeGemId.value) return
+  return gemsById.value[cell.gemId].color === color
 }
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]

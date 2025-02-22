@@ -31,7 +31,7 @@ npm run build
     "y": 0,
     "targetX": 0,
     "targetY": 0,
-    "animation": false,
+    "interactive": false,
     "element": null
   },
   "7521372547236283": {
@@ -41,7 +41,7 @@ npm run build
     "y": 0,
     "targetX": 0,
     "targetY": 0,
-    "animation": false,
+    "interactive": false,
     "element": null
   }
 }
