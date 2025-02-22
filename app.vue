@@ -84,6 +84,7 @@ const grid = ref(
   }))
 )
 const activeGemId = ref(null)
+const adjacentGemId = ref(null)
 const mouse = { x: 0, y: 0 }
 let activationTime = null
 let gridRect = null
@@ -278,6 +279,16 @@ function updateActiveGemCoordinates(gem, mouseX, mouseY) {
     gem.x = constrainedX
     gem.y = constrainedY
   }
+
+  if (distance > dragDistance.value) {
+    let indexDifference
+    if (Math.abs(dx) > Math.abs(dy)) indexDifference = dx > 0 ? 1 : -1
+    else indexDifference = dy > 0 ? gridSize.value : -gridSize.value
+    const cell = grid.value[gem.gridIndex + indexDifference]
+    if (cell && cell.gemId) adjacentGemId.value = cell.gemId
+  } else {
+    adjacentGemId.value = null
+  }
 }
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
@@ -287,7 +298,6 @@ function onMouseDown(gemId) {
     updateActiveGemCoordinates(gemsById.value[gemId], mouse.x, mouse.y)
     activationTime = Date.now()
     gem.element.style.zIndex = "10"
-    console.log("make active")
     anime.remove(gemsById.value[activeGemId.value])
   } else {
     resetIfActive(activeGemId.value)
@@ -315,6 +325,7 @@ function resetIfActive(gemId) {
   const activeGem = gemsById.value[gemId]
   animateResetActive(activeGem)
   activeGemId.value = null
+  adjacentGemId.value = null
   activationTime = null
 }
 function mouseGemDistance(gem) {
