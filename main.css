@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 .orange {
-  --dark: #e86224;
-  --light: #ff963f;
+  --dark: #f34b25;
+  --light: #ff8b68;
   background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
   border-color: var(--light);
 }
