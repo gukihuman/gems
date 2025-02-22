@@ -16,6 +16,8 @@
           v-for="i in gridSize ** 2"
           :key="i"
           class="border-[3px] border-slate-600 rounded-md bg-slate-700"
+          draggable="false"
+          @dragstart.prevent
         ></div>
         <div
           v-for="(gem, id) in gemsById"
@@ -23,6 +25,8 @@
           class="absolute group"
           :ref="(element) => (gem.element = element)"
           @mousedown="onMouseDown(id)"
+          draggable="false"
+          @dragstart.prevent
           :style="{
             left: gem.x - cellSize / 2 + 'px',
             top: gem.y - cellSize / 2 + 'px',
@@ -65,8 +69,8 @@ const GEM_CLASSES = {
 }
 const DISTANCE_PER_SECOND = 150
 const REMOVE_DELAY = 500
-const DRAG_DISTANCE = 30
-const CLICK_DELAY = 350
+const DRAG_DISTANCE = 40
+const CLICK_DELAY = 260
 
 const gridRef = ref(null)
 
@@ -190,6 +194,7 @@ function animateResetActive(gem) {
       duration: 300,
       easing: "easeOutQuad",
       complete: () => {
+        if (!gem) return // might be removed
         gem.animation = false
         gem.element.style.zIndex = "0"
       },
@@ -254,10 +259,8 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
 function updateActiveGemCoordinates(gem, mouseX, mouseY) {
-  const dx = mouseX - gem.targetX
-  const dy = mouseY - gem.targetY
-  const distance = Math.sqrt(dx * dx + dy * dy)
-  if (distance <= DRAG_DISTANCE) {
+  const { dx, dy, distance } = mouseGemDistance(gem)
+  if (distance < DRAG_DISTANCE) {
     gem.x = mouseX
     gem.y = mouseY
   } else {
@@ -288,7 +291,11 @@ function onMouseMove(event) {
   updateActiveGemCoordinates(activeGem, mouse.x, mouse.y)
 }
 function onMouseUp() {
-  if (!activeGemId.value || Date.now() - activationTime < CLICK_DELAY) return
+  if (!activeGemId.value) return
+  const { distance } = mouseGemDistance(gemsById.value[activeGemId.value])
+  if (Date.now() - activationTime < CLICK_DELAY && distance < DRAG_DISTANCE) {
+    return
+  }
   const activeGem = gemsById.value[activeGemId.value]
   resetActive(activeGem)
 }
@@ -296,5 +303,10 @@ function resetActive(gem) {
   animateResetActive(gem)
   activeGemId.value = null
   activationTime = null
+}
+function mouseGemDistance(gem) {
+  const dx = mouse.x - gem.targetX
+  const dy = mouse.y - gem.targetY
+  return { dx, dy, distance: Math.sqrt(dx ** 2 + dy ** 2) }
 }
 </script>
