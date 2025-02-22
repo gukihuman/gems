@@ -22,6 +22,7 @@
         <div
           v-for="(gem, id) in gemsById"
           :key="id"
+          :data-gem-id="id"
           class="absolute group"
           :ref="(element) => (gem.element = element)"
           @mousedown="onMouseDown(id)"
@@ -57,7 +58,7 @@ import anime from "animejs"
 import newId from "./utils/newId"
 import { nextTick } from "vue"
 
-const GRID_SIZE = 9
+const GRID_SIZE = 8
 const MATCH = 3
 const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
 const GEM_CLASSES = {
@@ -98,6 +99,12 @@ onMounted(() => {
   requestAnimationFrame(gameLoop)
   addEventListener("mousemove", onMouseMove)
   addEventListener("mouseup", onMouseUp)
+  addEventListener("keydown", (event) => {
+    if (event.key === "o") {
+      const closestGem = findClosestGem(mouse.x, mouse.y)
+      if (closestGem) onMouseDown(closestGem.id)
+    }
+  })
 })
 
 function gameLoop() {
@@ -122,11 +129,14 @@ function setGridCoordinates() {
 function generateGems() {
   for (let column = gridSize.value - 1; column >= 0; column--) {
     let emptyCells = false
+    let transitionOngoing = false
     for (let row = 0; row < gridSize.value; row++) {
       const i = row * gridSize.value + column
-      if (!grid.value[i].gemId) emptyCells = true
+      const gem = gemsById.value[grid.value[i].gemId]
+      if (!gem) emptyCells = true
+      if (gem && gem.swapping) transitionOngoing = true
     }
-    if (!emptyCells) continue
+    if (!emptyCells || transitionOngoing) continue
 
     let unstableColumnGems = []
     let stableGems = 0 // bottom of line
@@ -145,7 +155,7 @@ function generateGems() {
       }
     }
     unstableColumnGems.forEach((gemId, row) => {
-      resetIfActive(gemId)
+      if (gemId === activeGemId.value) resetGem(gemId)
       const reverseRow = gridSize.value - 1 - row - stableGems
       const i = reverseRow * gridSize.value + column
       grid.value[i].gemId = gemId
@@ -196,22 +206,8 @@ function animateFall(gem) {
     })
   })
 }
-function animateResetActive(gem) {
-  nextTick(() => {
-    anime({
-      targets: gem,
-      x: gem.targetX,
-      y: gem.targetY,
-      duration: 300,
-      easing: "easeOutQuad",
-      complete: () => {
-        if (gem) gem.element.style.zIndex = "0" // check for already removed
-      },
-    })
-  })
-}
 function removeGem(gemId) {
-  resetIfActive(gemId)
+  if (gemId === activeGemId.value) resetGem(gemId)
   const gem = gemsById.value[gemId]
   grid.value[gem.gridIndex].gemId = null
   gem.interactive = false
@@ -245,6 +241,7 @@ function checkLine(matchedGemIds, startIndex, step) {
   for (let i = 0; i < gridSize.value; i++) {
     const gemId = grid.value[startIndex + i * step].gemId
     const gem = gemsById.value[gemId]
+    if (!gem) return
     if (!gem.interactive) {
       resolveLine(matchedGemIds, singleColorLine, matchCount)
       singleColorLine = []
@@ -268,7 +265,8 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
   if (matchCount < MATCH) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
-function updateActiveGemCoordinates(gem, mouseX, mouseY) {
+function updateActiveGemCoordinates(gemId, mouseX, mouseY) {
+  const gem = gemsById.value[gemId]
   const { dx, dy, distance } = mouseGemDistance(gem)
   if (distance < dragDistance.value) {
     gem.x = mouseX
@@ -286,55 +284,88 @@ function updateActiveGemCoordinates(gem, mouseX, mouseY) {
     if (Math.abs(dx) > Math.abs(dy)) indexDifference = dx > 0 ? 1 : -1
     else indexDifference = dy > 0 ? gridSize.value : -gridSize.value
     const adjacentGridIndex = gem.gridIndex + indexDifference
-    const cell = grid.value[adjacentGridIndex]
-    if (cell && cell.gemId) adjacentGemId.value = cell.gemId
-    console.log(checkPossibleMatch(adjacentGridIndex, gem.color))
+    if (adjacentGridIndex && checkBorder(gem.gridIndex, adjacentGridIndex)) {
+      const adjacentCell = grid.value[adjacentGridIndex]
+      if (adjacentCell && adjacentCell.gemId) {
+        adjacentGemId.value = adjacentCell.gemId
+        const adjacentGem = gemsById.value[adjacentCell.gemId]
+        if (
+          checkPossibleMatch(adjacentGridIndex, gem.color) ||
+          checkPossibleMatch(gem.gridIndex, adjacentGem.color)
+        ) {
+          const currentCell = grid.value[gem.gridIndex]
+
+          const tempGridIndex = gem.gridIndex
+          gem.targetX = adjacentCell.x
+          gem.targetY = adjacentCell.y
+          gem.gridIndex = adjacentGridIndex
+          adjacentGem.targetX = currentCell.x
+          adjacentGem.targetY = currentCell.y
+          adjacentGem.gridIndex = tempGridIndex
+
+          const tempGemId = adjacentCell.gemId
+          adjacentCell.gemId = currentCell.gemId
+          currentCell.gemId = tempGemId
+
+          resetGem(adjacentGemId.value, true)
+          resetGem(gemId, true)
+        }
+      }
+    }
   } else {
     adjacentGemId.value = null
   }
 }
-function checkPossibleMatch(gridIndex, color) {
-  let xMatches =
-    checkMatchIntoDirection(gridIndex, 1, color) +
-    checkMatchIntoDirection(gridIndex, -1, color)
-  let yMatches =
-    checkMatchIntoDirection(gridIndex, gridSize.value, color) +
-    checkMatchIntoDirection(gridIndex, -gridSize.value, color)
-  if (1 + xMatches >= MATCH || 1 + yMatches >= MATCH) return true
-  else return false
+function checkBorder(index, adjacentIndex) {
+  const currentCol = index % gridSize.value
+  const adjacentCol = adjacentIndex % gridSize.value
+  if (currentCol === 0 && adjacentCol === gridSize.value - 1) return
+  if (currentCol === gridSize.value - 1 && adjacentCol === 0) return
+  return true
 }
-function checkMatchIntoDirection(gridIndex, indexDifference, color) {
-  let count = 0
-  if (checkCellMatch(gridIndex + indexDifference, color)) {
-    count++
-    if (checkCellMatch(gridIndex + indexDifference * 2, color)) count++
+function checkPossibleMatch(index, color) {
+  const row = Math.floor(index / gridSize.value)
+  const col = index % gridSize.value
+  let left = col - 1
+  let right = col + 1
+  let top = row - 1
+  let bottom = row + 1
+  while (left >= 0 && getColorAt(row, left) === color) left--
+  while (right < gridSize.value && getColorAt(row, right) === color) right++
+  while (top >= 0 && getColorAt(top, col) === color) top--
+  while (bottom < gridSize.value && getColorAt(bottom, col) === color) bottom++
+  const horizontalLength = right - left - 1
+  const verticalLength = bottom - top - 1
+  return horizontalLength >= MATCH || verticalLength >= MATCH
+}
+
+function getColorAt(row, col) {
+  if (row < 0 || row >= gridSize.value || col < 0 || col >= gridSize.value) {
+    return
   }
-  return count
-}
-function checkCellMatch(gridIndex, color) {
-  const cell = grid.value[gridIndex]
-  if (!cell || !cell.gemId || cell.gemId === activeGemId.value) return
-  return gemsById.value[cell.gemId].color === color
+  const index = row * gridSize.value + col
+  const gemId = grid.value[index].gemId
+  if (!gemId || gemId === activeGemId.value) return
+  return gemsById.value[gemId].color
 }
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
   if (!gem.interactive) return
   if (!activeGemId.value) {
     activeGemId.value = gemId
-    updateActiveGemCoordinates(gemsById.value[gemId], mouse.x, mouse.y)
+    updateActiveGemCoordinates(gemId, mouse.x, mouse.y)
     activationTime = Date.now()
     gem.element.style.zIndex = "10"
     anime.remove(gemsById.value[activeGemId.value])
   } else {
-    resetIfActive(activeGemId.value)
+    resetGem(activeGemId.value)
   }
 }
 function onMouseMove(event) {
   mouse.x = event.clientX - gridRect.left
   mouse.y = event.clientY - gridRect.top
   if (!activeGemId.value) return
-  const activeGem = gemsById.value[activeGemId.value]
-  updateActiveGemCoordinates(activeGem, mouse.x, mouse.y)
+  updateActiveGemCoordinates(activeGemId.value, mouse.x, mouse.y)
 }
 function onMouseUp() {
   if (!activeGemId.value) return
@@ -343,20 +374,46 @@ function onMouseUp() {
     Date.now() - activationTime > CLICK_DELAY ||
     distance > dragDistance.value
   ) {
-    resetIfActive(activeGemId.value)
+    resetGem(activeGemId.value)
   }
 }
-function resetIfActive(gemId) {
-  if (gemId !== activeGemId.value) return
-  const activeGem = gemsById.value[gemId]
-  animateResetActive(activeGem)
+function resetGem(gemId, swapping = false) {
   activeGemId.value = null
   adjacentGemId.value = null
   activationTime = null
+  const gem = gemsById.value[gemId]
+  gem.swapping = swapping
+  nextTick(() => {
+    anime({
+      targets: gem,
+      x: gem.targetX,
+      y: gem.targetY,
+      duration: 300,
+      easing: "easeOutQuad",
+      complete: () => {
+        if (gem) gem.element.style.zIndex = "0" // check for already removed
+        gem.swapping = false
+      },
+    })
+  })
 }
 function mouseGemDistance(gem) {
   const dx = mouse.x - gem.targetX
   const dy = mouse.y - gem.targetY
   return { dx, dy, distance: Math.sqrt(dx ** 2 + dy ** 2) }
+}
+function findClosestGem(mouseX, mouseY) {
+  let closestGem = null
+  let minDistance = Infinity
+  Object.entries(gemsById.value).forEach(([id, gem]) => {
+    const distance = Math.sqrt(
+      Math.pow(mouseX - gem.x, 2) + Math.pow(mouseY - gem.y, 2)
+    )
+    if (distance < minDistance) {
+      minDistance = distance
+      closestGem = { id, ...gem }
+    }
+  })
+  return minDistance < cellSize.value ? closestGem : null
 }
 </script>

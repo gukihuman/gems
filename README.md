@@ -32,6 +32,7 @@ npm run build
     "targetX": 0,
     "targetY": 0,
     "interactive": false,
+    "swapping": false,
     "element": null
   },
   "7521372547236283": {
@@ -42,6 +43,7 @@ npm run build
     "targetX": 0,
     "targetY": 0,
     "interactive": false,
+    "swapping": false,
     "element": null
   }
 }
