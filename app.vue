@@ -56,7 +56,6 @@
 <script setup>
 import anime from "animejs"
 import newId from "./utils/newId"
-import { nextTick } from "vue"
 
 const GRID_SIZE = 8
 const MATCH = 3
@@ -266,19 +265,10 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
   if (matchCount < MATCH) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
-function updateActiveGemCoordinates(gemId, mouseX, mouseY) {
+function updateActiveGemCoordinates(gemId) {
   const gem = gemsById.value[gemId]
   const { dx, dy, distance } = mouseGemDistance(gem)
-  if (distance < dragDistance.value) {
-    gem.x = mouseX
-    gem.y = mouseY
-  } else {
-    const angle = Math.atan2(dy, dx)
-    const constrainedX = gem.targetX + dragDistance.value * Math.cos(angle)
-    const constrainedY = gem.targetY + dragDistance.value * Math.sin(angle)
-    gem.x = constrainedX
-    gem.y = constrainedY
-  }
+  adjustPositionToDrag(gem, dx, dy, distance)
 
   if (distance > dragDistance.value) {
     let indexDifference
@@ -298,28 +288,32 @@ function updateActiveGemCoordinates(gemId, mouseX, mouseY) {
             adjacentGemId.value
           )
         ) {
-          const currentCell = grid.value[gem.gridIndex]
-
-          const tempGridIndex = gem.gridIndex
-          gem.targetX = adjacentCell.x
-          gem.targetY = adjacentCell.y
-          gem.gridIndex = adjacentGridIndex
-          adjacentGem.targetX = currentCell.x
-          adjacentGem.targetY = currentCell.y
-          adjacentGem.gridIndex = tempGridIndex
-
-          const tempGemId = adjacentCell.gemId
-          adjacentCell.gemId = currentCell.gemId
-          currentCell.gemId = tempGemId
-
-          resetGem(adjacentGemId.value, true)
-          resetGem(gemId, true)
+          swapGems(gemId, adjacentGemId.value)
         }
       }
     }
   } else {
     adjacentGemId.value = null
   }
+}
+function swapGems(gemId1, gemId2) {
+  const gem1 = gemsById.value[gemId1]
+  const gem2 = gemsById.value[gemId2]
+  const gem1Cell = grid.value[gem1.gridIndex]
+  const gem2Cell = grid.value[gem2.gridIndex]
+  const tempGridIndex = gem1.gridIndex
+  gem1.gridIndex = gem2.gridIndex
+  gem2.gridIndex = tempGridIndex
+  gem1.targetX = gem2Cell.x
+  gem1.targetY = gem2Cell.y
+  gem2.targetX = gem1Cell.x
+  gem2.targetY = gem1Cell.y
+  gem1Cell.gemId = gemId2
+  gem2Cell.gemId = gemId1
+  gem1.swapping = true
+  gem2.swapping = true
+  resetGem(gemId1)
+  resetGem(gemId2)
 }
 function checkBorder(index, adjacentIndex) {
   const currentCol = index % gridSize.value
@@ -360,7 +354,7 @@ function onMouseDown(gemId) {
   if (!gem.interactive) return
   if (!activeGemId.value) {
     activeGemId.value = gemId
-    updateActiveGemCoordinates(gemId, mouse.x, mouse.y)
+    updateActiveGemCoordinates(gemId)
     activationTime = Date.now()
     gem.element.style.zIndex = "10"
     anime.remove(gemsById.value[activeGemId.value])
@@ -372,7 +366,7 @@ function onMouseMove(event) {
   mouse.x = event.clientX - gridRect.left
   mouse.y = event.clientY - gridRect.top
   if (!activeGemId.value) return
-  updateActiveGemCoordinates(activeGemId.value, mouse.x, mouse.y)
+  updateActiveGemCoordinates(activeGemId.value)
 }
 function onMouseUp() {
   if (!activeGemId.value) return
@@ -384,12 +378,11 @@ function onMouseUp() {
     resetGem(activeGemId.value)
   }
 }
-function resetGem(gemId, swapping = false) {
+function resetGem(gemId) {
   activeGemId.value = null
   adjacentGemId.value = null
   activationTime = null
   const gem = gemsById.value[gemId]
-  gem.swapping = swapping
   nextTick(() => {
     anime({
       targets: gem,
@@ -422,5 +415,15 @@ function findClosestGem(mouseX, mouseY) {
     }
   })
   return minDistance < cellSize.value ? closestGem : null
+}
+function adjustPositionToDrag(gem, dx, dy, distance) {
+  if (distance < dragDistance.value) {
+    gem.x = mouse.x
+    gem.y = mouse.y
+    return
+  }
+  const angle = Math.atan2(dy, dx)
+  gem.x = gem.targetX + dragDistance.value * Math.cos(angle)
+  gem.y = gem.targetY + dragDistance.value * Math.sin(angle)
 }
 </script>
