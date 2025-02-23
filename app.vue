@@ -70,7 +70,7 @@ const GEM_CLASSES = {
 const DISTANCE_PER_SECOND = 150
 const REMOVE_DELAY = 500
 const CLICK_DELAY = 300
-const DRAG_DISTANCE = 0.7 // cell size ratio
+const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
 
 const gridRef = ref(null)
 
@@ -90,7 +90,7 @@ const mouse = { x: 0, y: 0 }
 let activationTime = null
 let gridRect = null
 
-const dragDistance = computed(() => cellSize.value * DRAG_DISTANCE)
+const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
 
 onMounted(() => {
   setGridCoordinates()
@@ -265,36 +265,54 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
   if (matchCount < MATCH) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
-function updateActiveGemCoordinates(gemId) {
+function handleActiveGem(gemId) {
   const gem = gemsById.value[gemId]
-  const { dx, dy, distance } = mouseGemDistance(gem)
-  adjustPositionToDrag(gem, dx, dy, distance)
-
-  if (distance > dragDistance.value) {
-    let indexDifference
-    if (Math.abs(dx) > Math.abs(dy)) indexDifference = dx > 0 ? 1 : -1
-    else indexDifference = dy > 0 ? gridSize.value : -gridSize.value
-    const adjacentGridIndex = gem.gridIndex + indexDifference
-    if (adjacentGridIndex && checkBorder(gem.gridIndex, adjacentGridIndex)) {
-      const adjacentCell = grid.value[adjacentGridIndex]
-      if (adjacentCell && adjacentCell.gemId) {
-        adjacentGemId.value = adjacentCell.gemId
-        const adjacentGem = gemsById.value[adjacentCell.gemId]
-        if (
-          checkPossibleMatch(adjacentGridIndex, gem.color, gemId) ||
-          checkPossibleMatch(
-            gem.gridIndex,
-            adjacentGem.color,
-            adjacentGemId.value
-          )
-        ) {
-          swapGems(gemId, adjacentGemId.value)
-        }
-      }
+  updateActiveGemCoordinates(gem)
+  const adjacentGemId = getAdjacentGemId(gem)
+  if (adjacentGemId) {
+    const adjacentGem = gemsById.value[adjacentGemId]
+    if (
+      checkPossibleMatch(adjacentGem.gridIndex, gem.color, gemId) ||
+      checkPossibleMatch(gem.gridIndex, adjacentGem.color, adjacentGemId)
+    ) {
+      swapGems(gemId, adjacentGemId)
     }
-  } else {
-    adjacentGemId.value = null
   }
+}
+function updateActiveGemCoordinates(gem) {
+  const { dx, dy, distance } = getMouseGemDistance(gem)
+  if (distance < maxDragDistance.value) {
+    gem.x = mouse.x
+    gem.y = mouse.y
+    return
+  }
+  const angle = Math.atan2(dy, dx)
+  gem.x = gem.targetX + maxDragDistance.value * Math.cos(angle)
+  gem.y = gem.targetY + maxDragDistance.value * Math.sin(angle)
+}
+function getAdjacentGemId(gem) {
+  const { dx, dy, distance } = getMouseGemDistance(gem)
+  if (distance <= maxDragDistance.value) {
+    adjacentGemId.value = null
+    return null
+  }
+  const indexDifference = getIndexDifference(dx, dy)
+  const adjacentGridIndex = gem.gridIndex + indexDifference
+  if (!adjacentGridIndex || !checkBorder(gem.gridIndex, adjacentGridIndex)) {
+    adjacentGemId.value = null
+    return null
+  }
+  const adjacentCell = grid.value[adjacentGridIndex]
+  if (!adjacentCell || !adjacentCell.gemId) {
+    adjacentGemId.value = null
+    return null
+  }
+  adjacentGemId.value = adjacentCell.gemId
+  return adjacentCell.gemId
+}
+function getIndexDifference(dx, dy) {
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 1 : -1
+  return dy > 0 ? gridSize.value : -gridSize.value
 }
 function swapGems(gemId1, gemId2) {
   const gem1 = gemsById.value[gemId1]
@@ -354,7 +372,7 @@ function onMouseDown(gemId) {
   if (!gem.interactive) return
   if (!activeGemId.value) {
     activeGemId.value = gemId
-    updateActiveGemCoordinates(gemId)
+    handleActiveGem(gemId)
     activationTime = Date.now()
     gem.element.style.zIndex = "10"
     anime.remove(gemsById.value[activeGemId.value])
@@ -365,16 +383,13 @@ function onMouseDown(gemId) {
 function onMouseMove(event) {
   mouse.x = event.clientX - gridRect.left
   mouse.y = event.clientY - gridRect.top
-  if (!activeGemId.value) return
-  updateActiveGemCoordinates(activeGemId.value)
+  if (activeGemId.value) handleActiveGem(activeGemId.value)
 }
 function onMouseUp() {
   if (!activeGemId.value) return
-  const { distance } = mouseGemDistance(gemsById.value[activeGemId.value])
-  if (
-    Date.now() - activationTime > CLICK_DELAY ||
-    distance > dragDistance.value
-  ) {
+  const { distance } = getMouseGemDistance(gemsById.value[activeGemId.value])
+  const timeExceedsDelay = Date.now() - activationTime > CLICK_DELAY
+  if (timeExceedsDelay || distance > maxDragDistance.value) {
     resetGem(activeGemId.value)
   }
 }
@@ -397,7 +412,7 @@ function resetGem(gemId) {
     })
   })
 }
-function mouseGemDistance(gem) {
+function getMouseGemDistance(gem) {
   const dx = mouse.x - gem.targetX
   const dy = mouse.y - gem.targetY
   return { dx, dy, distance: Math.sqrt(dx ** 2 + dy ** 2) }
@@ -415,15 +430,5 @@ function findClosestGem(mouseX, mouseY) {
     }
   })
   return minDistance < cellSize.value ? closestGem : null
-}
-function adjustPositionToDrag(gem, dx, dy, distance) {
-  if (distance < dragDistance.value) {
-    gem.x = mouse.x
-    gem.y = mouse.y
-    return
-  }
-  const angle = Math.atan2(dy, dx)
-  gem.x = gem.targetX + dragDistance.value * Math.cos(angle)
-  gem.y = gem.targetY + dragDistance.value * Math.sin(angle)
 }
 </script>
