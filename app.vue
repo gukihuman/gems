@@ -43,7 +43,7 @@
               {
                 'group-hover:brightness-150 group-hover:scale-[1.2]':
                   !activeGemId && gem.interactive,
-                'scale-[0.8] brightness-150': id === activeGemId,
+                'scale-[0.85] brightness-150': id === activeGemId,
               },
             ]"
           ></div>
@@ -211,6 +211,7 @@ function removeGem(gemId) {
   const gem = gemsById.value[gemId]
   grid.value[gem.gridIndex].gemId = null
   gem.interactive = false
+  gem.element.style.filter = "brightness(1.5)"
   nextTick(() => {
     anime({
       targets: gem.element,
