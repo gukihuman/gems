@@ -126,11 +126,11 @@ function setGridCoordinates() {
   })
 }
 function generateGems() {
-  for (let column = gridSize.value - 1; column >= 0; column--) {
+  for (let col = gridSize.value - 1; col >= 0; col--) {
     let emptyCells = false
     let transitionOngoing = false
     for (let row = 0; row < gridSize.value; row++) {
-      const i = row * gridSize.value + column
+      const i = row * gridSize.value + col
       const gem = gemsById.value[grid.value[i].gemId]
       if (!gem) emptyCells = true
       if (gem && gem.swapping) transitionOngoing = true
@@ -141,7 +141,7 @@ function generateGems() {
     let stableGems = 0 // bottom of line
     let stableSoFar = true
     for (let row = gridSize.value - 1; row >= 0; row--) {
-      const i = row * gridSize.value + column
+      const i = row * gridSize.value + col
       if (stableSoFar && grid.value[i].gemId) {
         stableGems++
         continue
@@ -156,7 +156,7 @@ function generateGems() {
     unstableColumnGems.forEach((gemId, row) => {
       if (gemId === activeGemId.value) resetGem(gemId)
       const reverseRow = gridSize.value - 1 - row - stableGems
-      const i = reverseRow * gridSize.value + column
+      const i = reverseRow * gridSize.value + col
       grid.value[i].gemId = gemId
       const gem = gemsById.value[gemId]
       gem.targetX = grid.value[i].x
@@ -168,7 +168,7 @@ function generateGems() {
     const emptyCount = gridSize.value - unstableColumnGems.length - stableGems
 
     for (let row = 0; row < emptyCount; row++) {
-      let i = row * gridSize.value + column
+      let i = row * gridSize.value + col
       const id = newId()
       const cell = grid.value[i]
       cell.gemId = id
@@ -266,33 +266,32 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
 function handleActiveGem(gemId) {
-  const gem = gemsById.value[gemId]
-  updateActiveGemCoordinates(gem)
-  const adjacentGemId = getAdjacentGemId(gem)
-  if (adjacentGemId) {
-    const adjacentGem = gemsById.value[adjacentGemId]
-    if (
-      checkPossibleMatch(adjacentGem.gridIndex, gem.color, gemId) ||
-      checkPossibleMatch(gem.gridIndex, adjacentGem.color, adjacentGemId)
-    ) {
-      swapGems(gemId, adjacentGemId)
-    }
+  const activeGem = gemsById.value[gemId]
+  updateActiveGemCoordinates(activeGem)
+  const adjacentGemId = getAdjacentGemId(activeGem)
+  if (!adjacentGemId) return
+  const adjacentGem = gemsById.value[adjacentGemId]
+  if (
+    checkPossibleSwap(adjacentGem.gridIndex, activeGem.color, gemId) ||
+    checkPossibleSwap(activeGem.gridIndex, adjacentGem.color, adjacentGemId)
+  ) {
+    swapGems(gemId, adjacentGemId)
   }
 }
-function updateActiveGemCoordinates(gem) {
-  const { dx, dy, distance } = getMouseGemDistance(gem)
+function updateActiveGemCoordinates(activeGem) {
+  const { dx, dy, distance } = getMouseGemDistance(activeGem)
   if (distance < maxDragDistance.value) {
-    gem.x = mouse.x
-    gem.y = mouse.y
+    activeGem.x = mouse.x
+    activeGem.y = mouse.y
     return
   }
   const angle = Math.atan2(dy, dx)
-  gem.x = gem.targetX + maxDragDistance.value * Math.cos(angle)
-  gem.y = gem.targetY + maxDragDistance.value * Math.sin(angle)
+  activeGem.x = activeGem.targetX + maxDragDistance.value * Math.cos(angle)
+  activeGem.y = activeGem.targetY + maxDragDistance.value * Math.sin(angle)
 }
 function getAdjacentGemId(gem) {
   const { dx, dy, distance } = getMouseGemDistance(gem)
-  if (distance <= maxDragDistance.value) {
+  if (distance < maxDragDistance.value) {
     adjacentGemId.value = null
     return null
   }
@@ -333,39 +332,54 @@ function swapGems(gemId1, gemId2) {
   resetGem(gemId1)
   resetGem(gemId2)
 }
-function checkBorder(index, adjacentIndex) {
-  const currentCol = index % gridSize.value
+function checkBorder(gridIndex, adjacentIndex) {
+  const currentCol = gridIndex % gridSize.value
   const adjacentCol = adjacentIndex % gridSize.value
   if (currentCol === 0 && adjacentCol === gridSize.value - 1) return
   if (currentCol === gridSize.value - 1 && adjacentCol === 0) return
   return true
 }
-function checkPossibleMatch(index, color, check) {
-  const row = Math.floor(index / gridSize.value)
-  const col = index % gridSize.value
-  let left = col - 1
-  let right = col + 1
-  let top = row - 1
-  let bottom = row + 1
-  while (left >= 0 && getColorAt(row, left, check) === color) left--
-  while (right < gridSize.value && getColorAt(row, right, check) === color)
-    right++
-  while (top >= 0 && getColorAt(top, col, check) === color) top--
-  while (bottom < gridSize.value && getColorAt(bottom, col, check) === color)
-    bottom++
-  const horizontalLength = right - left - 1
-  const verticalLength = bottom - top - 1
-  return horizontalLength >= MATCH || verticalLength >= MATCH
+function checkPossibleSwap(gridIndex, color, excludedGemId) {
+  const row = Math.floor(gridIndex / gridSize.value)
+  const col = gridIndex % gridSize.value
+  const left = [0, -1]
+  const right = [0, 1]
+  const up = [-1, 0]
+  const down = [1, 0]
+  let horizontalMatches =
+    1 +
+    countConsecutiveMatches(row, col, right, color, excludedGemId) +
+    countConsecutiveMatches(row, col, left, color, excludedGemId)
+  let verticalMatches =
+    1 +
+    countConsecutiveMatches(row, col, down, color, excludedGemId) +
+    countConsecutiveMatches(row, col, up, color, excludedGemId)
+  return horizontalMatches >= MATCH || verticalMatches >= MATCH
 }
-
-function getColorAt(row, col, check) {
-  if (row < 0 || row >= gridSize.value || col < 0 || col >= gridSize.value) {
-    return
+function countConsecutiveMatches(row, col, direction, color, excludedGemId) {
+  let count = 0
+  let [directionRow, directionCol] = direction
+  row += directionRow
+  col += directionCol
+  let gemId = getGemIdAt(row, col)
+  while (
+    gemId &&
+    gemId !== excludedGemId &&
+    gemsById.value[gemId].interactive &&
+    gemsById.value[gemId].color === color
+  ) {
+    count++
+    row += directionRow
+    col += directionCol
+    gemId = getGemIdAt(row, col)
   }
-  const index = row * gridSize.value + col
-  const gemId = grid.value[index].gemId
-  if (!gemId || gemId === check) return
-  return gemsById.value[gemId].color
+  return count
+}
+function getGemIdAt(row, col) {
+  const isValidRow = row >= 0 && row < gridSize.value
+  const isValidCol = col >= 0 && col < gridSize.value
+  if (!isValidRow || !isValidCol) return
+  return grid.value[row * gridSize.value + col].gemId
 }
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
@@ -413,6 +427,7 @@ function resetGem(gemId) {
   })
 }
 function getMouseGemDistance(gem) {
+  //  📜 mb rename thouse distances to smth more close to actual meaning, that is related to active gem
   const dx = mouse.x - gem.targetX
   const dy = mouse.y - gem.targetY
   return { dx, dy, distance: Math.sqrt(dx ** 2 + dy ** 2) }
