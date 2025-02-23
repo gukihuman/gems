@@ -279,24 +279,26 @@ function handleActiveGem(gemId) {
   }
 }
 function updateActiveGemCoordinates(activeGem) {
-  const { dx, dy, distance } = getMouseGemDistance(activeGem)
-  if (distance < maxDragDistance.value) {
+  const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
+    getMouseGemDistance(activeGem)
+  if (mouseGemDistance < maxDragDistance.value) {
     activeGem.x = mouse.x
     activeGem.y = mouse.y
     return
   }
-  const angle = Math.atan2(dy, dx)
+  const angle = Math.atan2(mouseGemDistanceY, mouseGemDistanceX)
   activeGem.x = activeGem.targetX + maxDragDistance.value * Math.cos(angle)
   activeGem.y = activeGem.targetY + maxDragDistance.value * Math.sin(angle)
 }
 function getAdjacentGemId(gem) {
-  const { dx, dy, distance } = getMouseGemDistance(gem)
-  if (distance < maxDragDistance.value) {
+  const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
+    getMouseGemDistance(gem)
+  if (mouseGemDistance < maxDragDistance.value) {
     adjacentGemId.value = null
     return null
   }
-  const indexDifference = getIndexDifference(dx, dy)
-  const adjacentGridIndex = gem.gridIndex + indexDifference
+  const gridIndexStep = getGridIndexStep(mouseGemDistanceX, mouseGemDistanceY)
+  const adjacentGridIndex = gem.gridIndex + gridIndexStep
   if (!adjacentGridIndex || !checkBorder(gem.gridIndex, adjacentGridIndex)) {
     adjacentGemId.value = null
     return null
@@ -309,7 +311,7 @@ function getAdjacentGemId(gem) {
   adjacentGemId.value = adjacentCell.gemId
   return adjacentCell.gemId
 }
-function getIndexDifference(dx, dy) {
+function getGridIndexStep(dx, dy) {
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 1 : -1
   return dy > 0 ? gridSize.value : -gridSize.value
 }
@@ -427,10 +429,12 @@ function resetGem(gemId) {
   })
 }
 function getMouseGemDistance(gem) {
-  //  📜 mb rename thouse distances to smth more close to actual meaning, that is related to active gem
-  const dx = mouse.x - gem.targetX
-  const dy = mouse.y - gem.targetY
-  return { dx, dy, distance: Math.sqrt(dx ** 2 + dy ** 2) }
+  const mouseGemDistanceX = mouse.x - gem.targetX
+  const mouseGemDistanceY = mouse.y - gem.targetY
+  const mouseGemDistance = Math.sqrt(
+    mouseGemDistanceX ** 2 + mouseGemDistanceY ** 2
+  )
+  return { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance }
 }
 function findClosestGem(mouseX, mouseY) {
   let closestGem = null
