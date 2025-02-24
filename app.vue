@@ -1,4 +1,5 @@
-/** x and y are always pixel coordinates, grid uses flat indices */
+/** x and y are always pixel coordinates, grid uses flat indices and row / col
+as coordinates */
 
 <template>
   <div
@@ -44,6 +45,7 @@
                 'group-hover:brightness-150 group-hover:scale-[1.2]':
                   !activeGemId && gem.interactive,
                 'scale-[0.85] brightness-150': id === activeGemId,
+                'scale-[0.95] saturate-[0.4]': !gemsById[id].interactive,
               },
             ]"
           ></div>
@@ -67,7 +69,8 @@ const GEM_CLASSES = {
   PURPLE: "purple",
   YELLOW: "yellow",
 }
-const DISTANCE_PER_SECOND = 150
+const BASE_FALL_DALAY = 400
+const DISTANCE_PER_SECOND = 400
 const REMOVE_DELAY = 500
 const CLICK_DELAY = 300
 const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
@@ -125,6 +128,7 @@ function setGridCoordinates() {
     gem.targetY = cell.y
   })
 }
+// 📜 modularize or smth refactor
 function generateGems() {
   for (let col = gridSize.value - 1; col >= 0; col--) {
     let emptyCells = false
@@ -133,7 +137,7 @@ function generateGems() {
       const i = row * gridSize.value + col
       const gem = gemsById.value[grid.value[i].gemId]
       if (!gem) emptyCells = true
-      if (gem && gem.swapping) transitionOngoing = true
+      if (gem && (!gem.interactive || gem.swapping)) transitionOngoing = true
     }
     if (!emptyCells || transitionOngoing) continue
 
@@ -192,7 +196,7 @@ function animateFall(gem) {
     Math.abs(gem.targetX - gem.x),
     Math.abs(gem.targetY - gem.y)
   )
-  const duration = 1000 * (distance / DISTANCE_PER_SECOND)
+  const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
   nextTick(() => {
     anime({
       targets: gem,
@@ -271,6 +275,7 @@ function handleActiveGem(gemId) {
   const adjacentGemId = getAdjacentGemId(activeGem)
   if (!adjacentGemId) return
   const adjacentGem = gemsById.value[adjacentGemId]
+  if (!adjacentGem.interactive) return
   if (
     checkPossibleSwap(adjacentGem.gridIndex, activeGem.color, gemId) ||
     checkPossibleSwap(activeGem.gridIndex, adjacentGem.color, adjacentGemId)
@@ -409,6 +414,7 @@ function onMouseUp() {
     resetGem(activeGemId.value)
   }
 }
+// 📜 rename mb
 function resetGem(gemId) {
   activeGemId.value = null
   adjacentGemId.value = null
