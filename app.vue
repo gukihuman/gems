@@ -110,7 +110,7 @@ onMounted(() => {
 })
 
 function gameLoop() {
-  generateGems()
+  cascadeGems()
   checkMatches()
   requestAnimationFrame(gameLoop)
 }
@@ -123,63 +123,65 @@ function setGridCoordinates() {
       cellSize.value * Math.floor(i / gridSize.value) + cellSize.value / 2
   })
 }
-// 📜 modularize or smth refactor
-function generateGems() {
+function cascadeGems() {
   for (let col = gridSize.value - 1; col >= 0; col--) {
-    let emptyCells = false
-    let transitionOngoing = false
+    let missingGems = 0
+    let allAvailable = true
     for (let row = 0; row < gridSize.value; row++) {
-      const i = row * gridSize.value + col
-      const gem = gemsById.value[grid.value[i].gemId]
-      if (!gem) emptyCells = true
-      if (gem && (!gem.interactive || gem.swapping)) transitionOngoing = true
+      const gridIndex = row * gridSize.value + col
+      const gem = gemsById.value[grid.value[gridIndex].gemId]
+      if (!gem) missingGems++
+      else if (!gem.interactive || gem.swapping) allAvailable = false
     }
-    if (!emptyCells || transitionOngoing) continue
-
-    let unstableColumnGems = []
-    let stableGems = 0 // bottom of line
-    let stableSoFar = true
-    for (let row = gridSize.value - 1; row >= 0; row--) {
-      const i = row * gridSize.value + col
-      if (stableSoFar && grid.value[i].gemId) {
-        stableGems++
-        continue
-      }
-      if (!grid.value[i].gemId) {
-        stableSoFar = false
-      } else {
-        unstableColumnGems.push(grid.value[i].gemId)
-        grid.value[i].gemId = null
-      }
-    }
-    unstableColumnGems.forEach((gemId, row) => {
-      if (gemId === activeGemId.value) homeGem(gemId)
-      const reverseRow = gridSize.value - 1 - row - stableGems
-      const i = reverseRow * gridSize.value + col
-      grid.value[i].gemId = gemId
-      const gem = gemsById.value[gemId]
-      gem.gridIndex = i
-      animateFall(gem)
-    })
-
-    const emptyCount = gridSize.value - unstableColumnGems.length - stableGems
-
-    for (let row = 0; row < emptyCount; row++) {
-      let i = row * gridSize.value + col
-      const id = newId()
-      const cell = grid.value[i]
-      cell.gemId = id
-      gemsById.value[id] = {
-        gridIndex: i,
-        color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
-        x: cellSize.value * (i % gridSize.value) + cellSize.value / 2,
-        y: -(cellSize.value * (emptyCount - row)) + cellSize.value / 2,
-        interactive: true,
-        element: null,
-      }
-      animateFall(gemsById.value[id])
+    if (!missingGems || !allAvailable) continue
+    dropUnstableGems(col)
+    for (let row = 0; row < missingGems; row++) {
+      const spawnOffsetY =
+        -(cellSize.value * (missingGems - row)) + cellSize.value / 2
+      generateGem(row * gridSize.value + col, spawnOffsetY)
     }
   }
+}
+function dropUnstableGems(col) {
+  let unstableColumnGems = []
+  let stableGems = 0 // bottom of line
+  let stableSoFar = true
+  for (let row = gridSize.value - 1; row >= 0; row--) {
+    const gridIndex = row * gridSize.value + col
+    if (stableSoFar && grid.value[gridIndex].gemId) {
+      stableGems++
+      continue
+    }
+    if (!grid.value[gridIndex].gemId) {
+      stableSoFar = false
+    } else {
+      unstableColumnGems.push(grid.value[gridIndex].gemId)
+      grid.value[gridIndex].gemId = null
+    }
+  }
+  unstableColumnGems.forEach((gemId, row) => {
+    if (gemId === activeGemId.value) homeGem(gemId)
+    const reverseRow = gridSize.value - 1 - row - stableGems
+    const gridIndex = reverseRow * gridSize.value + col
+    grid.value[gridIndex].gemId = gemId
+    const gem = gemsById.value[gemId]
+    gem.gridIndex = gridIndex
+    animateFall(gem)
+  })
+}
+function generateGem(gridIndex, spawnOffsetY) {
+  const id = newId()
+  grid.value[gridIndex].gemId = id
+  const { cellX } = getCellCoordinates(gridIndex)
+  gemsById.value[id] = {
+    gridIndex: gridIndex,
+    color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
+    x: cellX,
+    y: spawnOffsetY,
+    interactive: true,
+    element: null,
+  }
+  animateFall(gemsById.value[id])
 }
 function animateFall(gem) {
   gem.interactive = false
