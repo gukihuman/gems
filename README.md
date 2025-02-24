@@ -29,8 +29,8 @@ npm run build
     "color": "RED",
     "x": 0,
     "y": 0,
-    "targetX": 0,
-    "targetY": 0,
+    "homeX": 0,
+    "homeY": 0,
     "interactive": false,
     "swapping": false,
     "element": null

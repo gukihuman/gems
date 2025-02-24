@@ -122,11 +122,6 @@ function setGridCoordinates() {
     cell.y =
       cellSize.value * Math.floor(i / gridSize.value) + cellSize.value / 2
   })
-  Object.values(gemsById.value).forEach((gem) => {
-    const cell = grid.value[gem.gridIndex]
-    gem.targetX = cell.x
-    gem.targetY = cell.y
-  })
 }
 // 📜 modularize or smth refactor
 function generateGems() {
@@ -158,13 +153,11 @@ function generateGems() {
       }
     }
     unstableColumnGems.forEach((gemId, row) => {
-      if (gemId === activeGemId.value) resetGem(gemId)
+      if (gemId === activeGemId.value) homeGem(gemId)
       const reverseRow = gridSize.value - 1 - row - stableGems
       const i = reverseRow * gridSize.value + col
       grid.value[i].gemId = gemId
       const gem = gemsById.value[gemId]
-      gem.targetX = grid.value[i].x
-      gem.targetY = grid.value[i].y
       gem.gridIndex = i
       animateFall(gem)
     })
@@ -181,8 +174,6 @@ function generateGems() {
         color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
         x: cellSize.value * (i % gridSize.value) + cellSize.value / 2,
         y: -(cellSize.value * (emptyCount - row)) + cellSize.value / 2,
-        targetX: cell.x,
-        targetY: cell.y,
         interactive: true,
         element: null,
       }
@@ -192,39 +183,33 @@ function generateGems() {
 }
 function animateFall(gem) {
   gem.interactive = false
-  let distance = Math.max(
-    Math.abs(gem.targetX - gem.x),
-    Math.abs(gem.targetY - gem.y)
-  )
+  const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
+  let distance = Math.max(Math.abs(cellX - gem.x), Math.abs(cellY - gem.y))
   const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
-  nextTick(() => {
-    anime({
-      targets: gem,
-      x: gem.targetX,
-      y: gem.targetY,
-      duration,
-      delay: REMOVE_DELAY,
-      easing: "easeInOutExpo",
-      complete: () => (gem.interactive = true),
-    })
+  anime({
+    targets: gem,
+    x: cellX,
+    y: cellY,
+    duration,
+    delay: REMOVE_DELAY,
+    easing: "easeInOutExpo",
+    complete: () => (gem.interactive = true),
   })
 }
 function removeGem(gemId) {
-  if (gemId === activeGemId.value) resetGem(gemId)
+  if (gemId === activeGemId.value) homeGem(gemId)
   const gem = gemsById.value[gemId]
   grid.value[gem.gridIndex].gemId = null
   gem.interactive = false
   gem.element.style.filter = "brightness(1.5)"
-  nextTick(() => {
-    anime({
-      targets: gem.element,
-      scale: [
-        { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
-        { value: 0, duration: REMOVE_DELAY * 0.7, easing: "easeInQuad" },
-      ],
-      opacity: [{ value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" }],
-      complete: () => delete gemsById.value[gemId],
-    })
+  anime({
+    targets: gem.element,
+    scale: [
+      { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
+      { value: 0, duration: REMOVE_DELAY * 0.7, easing: "easeInQuad" },
+    ],
+    opacity: [{ value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" }],
+    complete: () => delete gemsById.value[gemId],
   })
 }
 function checkMatches() {
@@ -292,8 +277,9 @@ function updateActiveGemCoordinates(activeGem) {
     return
   }
   const angle = Math.atan2(mouseGemDistanceY, mouseGemDistanceX)
-  activeGem.x = activeGem.targetX + maxDragDistance.value * Math.cos(angle)
-  activeGem.y = activeGem.targetY + maxDragDistance.value * Math.sin(angle)
+  const { cellX, cellY } = getCellCoordinates(activeGem.gridIndex)
+  activeGem.x = cellX + maxDragDistance.value * Math.cos(angle)
+  activeGem.y = cellY + maxDragDistance.value * Math.sin(angle)
 }
 function getAdjacentGemId(gem) {
   const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
@@ -328,16 +314,12 @@ function swapGems(gemId1, gemId2) {
   const tempGridIndex = gem1.gridIndex
   gem1.gridIndex = gem2.gridIndex
   gem2.gridIndex = tempGridIndex
-  gem1.targetX = gem2Cell.x
-  gem1.targetY = gem2Cell.y
-  gem2.targetX = gem1Cell.x
-  gem2.targetY = gem1Cell.y
   gem1Cell.gemId = gemId2
   gem2Cell.gemId = gemId1
   gem1.swapping = true
   gem2.swapping = true
-  resetGem(gemId1)
-  resetGem(gemId2)
+  homeGem(gemId1)
+  homeGem(gemId2)
 }
 function checkBorder(gridIndex, adjacentIndex) {
   const currentCol = gridIndex % gridSize.value
@@ -398,7 +380,7 @@ function onMouseDown(gemId) {
     gem.element.style.zIndex = "10"
     anime.remove(gemsById.value[activeGemId.value])
   } else {
-    resetGem(activeGemId.value)
+    homeGem(activeGemId.value)
   }
 }
 function onMouseMove(event) {
@@ -411,32 +393,34 @@ function onMouseUp() {
   const { distance } = getMouseGemDistance(gemsById.value[activeGemId.value])
   const timeExceedsDelay = Date.now() - activationTime > CLICK_DELAY
   if (timeExceedsDelay || distance > maxDragDistance.value) {
-    resetGem(activeGemId.value)
+    homeGem(activeGemId.value)
   }
 }
-// 📜 rename mb
-function resetGem(gemId) {
+function homeGem(gemId) {
   activeGemId.value = null
   adjacentGemId.value = null
   activationTime = null
   const gem = gemsById.value[gemId]
-  nextTick(() => {
-    anime({
-      targets: gem,
-      x: gem.targetX,
-      y: gem.targetY,
-      duration: 300,
-      easing: "easeOutQuad",
-      complete: () => {
-        if (gem) gem.element.style.zIndex = "0" // check for already removed
-        gem.swapping = false
-      },
-    })
+  const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
+  anime({
+    targets: gem,
+    x: cellX,
+    y: cellY,
+    duration: 300,
+    easing: "easeOutQuad",
+    complete: () => {
+      if (gem) gem.element.style.zIndex = "0" // check for already removed
+      gem.swapping = false
+    },
   })
 }
+function getCellCoordinates(gridIndex) {
+  return { cellX: grid.value[gridIndex].x, cellY: grid.value[gridIndex].y }
+}
 function getMouseGemDistance(gem) {
-  const mouseGemDistanceX = mouse.x - gem.targetX
-  const mouseGemDistanceY = mouse.y - gem.targetY
+  const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
+  const mouseGemDistanceX = mouse.x - cellX
+  const mouseGemDistanceY = mouse.y - cellY
   const mouseGemDistance = Math.sqrt(
     mouseGemDistanceX ** 2 + mouseGemDistanceY ** 2
   )
