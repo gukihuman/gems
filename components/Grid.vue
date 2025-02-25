@@ -88,6 +88,7 @@ onMounted(() => {
   addEventListener("keydown", onKeyDown)
   requestAnimationFrame(gameLoop)
 })
+// core
 function gameLoop() {
   cascadeGems()
   resolveMatches()
@@ -100,6 +101,9 @@ function setGridCoordinates() {
     cell.x = cellSize.value * (i % props.size) + cellSize.value / 2
     cell.y = cellSize.value * Math.floor(i / props.size) + cellSize.value / 2
   })
+}
+function getHomeCoordinates(gridIndex) {
+  return { homeX: grid[gridIndex].x, homeY: grid[gridIndex].y }
 }
 function cascadeGems() {
   for (let col = gridEdge; col >= 0; col--) {
@@ -161,42 +165,7 @@ function cascadeStableGems(col, missingGems) {
     animateCascade(gemsById.value[id])
   }
 }
-function animateCascade(gem) {
-  gem.interactive = false
-  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
-  let distance = Math.max(Math.abs(homeX - gem.x), Math.abs(homeY - gem.y))
-  const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
-  anime({
-    targets: gem,
-    x: homeX,
-    y: homeY,
-    duration,
-    delay: REMOVE_DELAY,
-    easing: "easeInOutExpo",
-    complete: () => {
-      gem.interactive = true
-      if (grid[gem.gridIndex].gemId === adjacentGemId) {
-        nextTick(() => handleActiveGem(activeGemId.value))
-      }
-    },
-  })
-}
-function removeGem(gemId) {
-  if (gemId === activeGemId.value) homeGem(gemId)
-  const gem = gemsById.value[gemId]
-  grid[gem.gridIndex].gemId = null
-  gem.interactive = false
-  gem.element.style.filter = "brightness(1.5)"
-  anime({
-    targets: gem.element,
-    scale: [
-      { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
-      { value: 0, duration: REMOVE_DELAY * 0.7, easing: "easeInQuad" },
-    ],
-    opacity: [{ value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" }],
-    complete: () => delete gemsById.value[gemId],
-  })
-}
+// match
 function resolveMatches() {
   const matchedGemIds = new Set()
   for (let row = 0; row < props.size; row++) {
@@ -239,6 +208,62 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
   if (matchCount < props.match) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
+// animate
+function animateCascade(gem) {
+  gem.interactive = false
+  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
+  let distance = Math.max(Math.abs(homeX - gem.x), Math.abs(homeY - gem.y))
+  const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
+  anime({
+    targets: gem,
+    x: homeX,
+    y: homeY,
+    duration,
+    delay: REMOVE_DELAY,
+    easing: "easeInOutExpo",
+    complete: () => {
+      gem.interactive = true
+      if (grid[gem.gridIndex].gemId === adjacentGemId) {
+        nextTick(() => handleActiveGem(activeGemId.value))
+      }
+    },
+  })
+}
+function homeGem(gemId) {
+  activeGemId.value = null
+  adjacentGemId = null
+  activationTime = null
+  const gem = gemsById.value[gemId]
+  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
+  anime({
+    targets: gem,
+    x: homeX,
+    y: homeY,
+    duration: 300,
+    easing: "easeOutQuad",
+    complete: () => {
+      if (gem) gem.element.style.zIndex = "0" // check for already removed
+      gem.swapping = false
+    },
+  })
+}
+function removeGem(gemId) {
+  if (gemId === activeGemId.value) homeGem(gemId)
+  const gem = gemsById.value[gemId]
+  grid[gem.gridIndex].gemId = null
+  gem.interactive = false
+  gem.element.style.filter = "brightness(1.5)"
+  anime({
+    targets: gem.element,
+    scale: [
+      { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
+      { value: 0, duration: REMOVE_DELAY * 0.7, easing: "easeInQuad" },
+    ],
+    opacity: [{ value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" }],
+    complete: () => delete gemsById.value[gemId],
+  })
+}
+// interact
 function handleActiveGem(gemId) {
   const activeGem = gemsById.value[gemId]
   updateActiveGemCoordinates(activeGem)
@@ -282,21 +307,6 @@ function getAdjacentGemId(gem) {
 function getGridIndexStep(dx, dy) {
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 1 : -1
   return dy > 0 ? props.size : -props.size
-}
-function swapGems(gemId1, gemId2) {
-  const gem1 = gemsById.value[gemId1]
-  const gem2 = gemsById.value[gemId2]
-  const gem1Cell = grid[gem1.gridIndex]
-  const gem2Cell = grid[gem2.gridIndex]
-  const tempGridIndex = gem1.gridIndex
-  gem1.gridIndex = gem2.gridIndex
-  gem2.gridIndex = tempGridIndex
-  gem1Cell.gemId = gemId2
-  gem2Cell.gemId = gemId1
-  gem1.swapping = true
-  gem2.swapping = true
-  homeGem(gemId1)
-  homeGem(gemId2)
 }
 function checkBorder(gridIndex, adjacentIndex) {
   const currentCol = gridIndex % props.size
@@ -347,6 +357,31 @@ function getGemIdAt(row, col) {
   if (!isValidRow || !isValidCol) return
   return grid[row * props.size + col].gemId
 }
+function swapGems(gemId1, gemId2) {
+  const gem1 = gemsById.value[gemId1]
+  const gem2 = gemsById.value[gemId2]
+  const gem1Cell = grid[gem1.gridIndex]
+  const gem2Cell = grid[gem2.gridIndex]
+  const tempGridIndex = gem1.gridIndex
+  gem1.gridIndex = gem2.gridIndex
+  gem2.gridIndex = tempGridIndex
+  gem1Cell.gemId = gemId2
+  gem2Cell.gemId = gemId1
+  gem1.swapping = true
+  gem2.swapping = true
+  homeGem(gemId1)
+  homeGem(gemId2)
+}
+function getMouseGemDistance(gem) {
+  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
+  const mouseGemDistanceX = mouse.x - homeX
+  const mouseGemDistanceY = mouse.y - homeY
+  const mouseGemDistance = Math.sqrt(
+    mouseGemDistanceX ** 2 + mouseGemDistanceY ** 2
+  )
+  return { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance }
+}
+// input
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
   if (!gem.interactive) return
@@ -391,35 +426,5 @@ function onMouseUp() {
   if (timeExceedsDelay || distance > maxDragDistance.value) {
     homeGem(activeGemId.value)
   }
-}
-function homeGem(gemId) {
-  activeGemId.value = null
-  adjacentGemId = null
-  activationTime = null
-  const gem = gemsById.value[gemId]
-  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
-  anime({
-    targets: gem,
-    x: homeX,
-    y: homeY,
-    duration: 300,
-    easing: "easeOutQuad",
-    complete: () => {
-      if (gem) gem.element.style.zIndex = "0" // check for already removed
-      gem.swapping = false
-    },
-  })
-}
-function getHomeCoordinates(gridIndex) {
-  return { homeX: grid[gridIndex].x, homeY: grid[gridIndex].y }
-}
-function getMouseGemDistance(gem) {
-  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
-  const mouseGemDistanceX = mouse.x - homeX
-  const mouseGemDistanceY = mouse.y - homeY
-  const mouseGemDistance = Math.sqrt(
-    mouseGemDistanceX ** 2 + mouseGemDistanceY ** 2
-  )
-  return { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance }
 }
 </script>
