@@ -4,11 +4,11 @@
       ref="gridRef"
       class="relative grid aspect-square bg-slate-600 overflow-hidden"
       :style="{
-        'grid-template-columns': `repeat(${gridSize}, minmax(0, 1fr))`,
+        'grid-template-columns': `repeat(${size}, minmax(0, 1fr))`,
       }"
     >
       <div
-        v-for="i in gridSize ** 2"
+        v-for="i in size ** 2"
         :key="i"
         class="border-[3px] border-slate-600 rounded-md bg-slate-700"
         draggable="false"
@@ -51,8 +51,6 @@
 /** x and y are always pixel coordinates within grid, grid itself uses row / col as coordinates and flat indices */
 import anime from "animejs"
 import newId from "./utils/newId"
-const GRID_SIZE = 8
-const MATCH = 3
 const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
 const GEM_CLASSES = {
   ORANGE: "orange",
@@ -66,24 +64,22 @@ const DISTANCE_PER_SECOND = 400
 const REMOVE_DELAY = 500
 const CLICK_DELAY = 300
 const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
+const props = defineProps(["size", "match"])
 const gridRef = ref(null)
 const gemsById = ref({})
 const cellSize = ref(0)
-const gridSize = ref(GRID_SIZE)
-const grid = ref(
-  Array.from(Array(gridSize.value ** 2), () => ({
-    gemId: null,
-    x: 0,
-    y: 0,
-  }))
-)
+const grid = Array.from(Array(props.size ** 2), () => ({
+  gemId: null,
+  x: 0,
+  y: 0,
+}))
 const activeGemId = ref(null)
 const adjacentGemId = ref(null)
+const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
+const gridEdge = props.size - 1
 const mouse = { x: 0, y: 0 }
 let activationTime = null
 let gridRect = null
-const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
-const gridEdge = computed(() => gridSize.value - 1)
 onMounted(() => {
   setGridCoordinates()
   addEventListener("resize", setGridCoordinates)
@@ -94,25 +90,24 @@ onMounted(() => {
 })
 function gameLoop() {
   cascadeGems()
-  checkMatches()
+  resolveMatches()
   requestAnimationFrame(gameLoop)
 }
 function setGridCoordinates() {
   gridRect = gridRef.value.getBoundingClientRect()
-  cellSize.value = gridRect.width / gridSize.value
-  grid.value.forEach((cell, i) => {
-    cell.x = cellSize.value * (i % gridSize.value) + cellSize.value / 2
-    cell.y =
-      cellSize.value * Math.floor(i / gridSize.value) + cellSize.value / 2
+  cellSize.value = gridRect.width / props.size
+  grid.forEach((cell, i) => {
+    cell.x = cellSize.value * (i % props.size) + cellSize.value / 2
+    cell.y = cellSize.value * Math.floor(i / props.size) + cellSize.value / 2
   })
 }
 function cascadeGems() {
-  for (let col = gridEdge.value; col >= 0; col--) {
+  for (let col = gridEdge; col >= 0; col--) {
     let missingGems = 0
     let allAvailable = true
-    for (let row = 0; row < gridSize.value; row++) {
-      const gridIndex = row * gridSize.value + col
-      const gem = gemsById.value[grid.value[gridIndex].gemId]
+    for (let row = 0; row < props.size; row++) {
+      const gridIndex = row * props.size + col
+      const gem = gemsById.value[grid[gridIndex].gemId]
       if (!gem) missingGems++
       else if (!gem.interactive || gem.swapping) allAvailable = false
     }
@@ -125,9 +120,9 @@ function cascadeUnstableGems(col) {
   let unstableColumnGems = []
   let stableGems = 0 // bottom of line
   let stableSoFar = true
-  for (let row = gridEdge.value; row >= 0; row--) {
-    const gridIndex = row * gridSize.value + col
-    const cell = grid.value[gridIndex]
+  for (let row = gridEdge; row >= 0; row--) {
+    const gridIndex = row * props.size + col
+    const cell = grid[gridIndex]
     if (stableSoFar && cell.gemId) {
       stableGems++
       continue
@@ -141,9 +136,9 @@ function cascadeUnstableGems(col) {
     }
   }
   unstableColumnGems.forEach((gemId, i) => {
-    const row = gridEdge.value - i - stableGems
-    const gridIndex = row * gridSize.value + col
-    grid.value[gridIndex].gemId = gemId
+    const row = gridEdge - i - stableGems
+    const gridIndex = row * props.size + col
+    grid[gridIndex].gemId = gemId
     const gem = gemsById.value[gemId]
     gem.gridIndex = gridIndex
     animateCascade(gem)
@@ -151,9 +146,9 @@ function cascadeUnstableGems(col) {
 }
 function cascadeStableGems(col, missingGems) {
   for (let row = 0; row < missingGems; row++) {
-    const gridIndex = row * gridSize.value + col
+    const gridIndex = row * props.size + col
     const id = newId()
-    grid.value[gridIndex].gemId = id
+    grid[gridIndex].gemId = id
     const { cellX } = getCellCoordinates(gridIndex)
     gemsById.value[id] = {
       gridIndex: gridIndex,
@@ -178,13 +173,18 @@ function animateCascade(gem) {
     duration,
     delay: REMOVE_DELAY,
     easing: "easeInOutExpo",
-    complete: () => (gem.interactive = true),
+    complete: () => {
+      gem.interactive = true
+      if (grid[gem.gridIndex].gemId === adjacentGemId.value) {
+        nextTick(() => handleActiveGem(activeGemId.value))
+      }
+    },
   })
 }
 function removeGem(gemId) {
   if (gemId === activeGemId.value) homeGem(gemId)
   const gem = gemsById.value[gemId]
-  grid.value[gem.gridIndex].gemId = null
+  grid[gem.gridIndex].gemId = null
   gem.interactive = false
   gem.element.style.filter = "brightness(1.5)"
   anime({
@@ -197,14 +197,14 @@ function removeGem(gemId) {
     complete: () => delete gemsById.value[gemId],
   })
 }
-function checkMatches() {
+function resolveMatches() {
   const matchedGemIds = new Set()
-  for (let row = 0; row < gridSize.value; row++) {
-    const startIndex = row * gridSize.value
+  for (let row = 0; row < props.size; row++) {
+    const startIndex = row * props.size
     checkLine(matchedGemIds, startIndex, 1)
   }
-  for (let startIndex = 0; startIndex < gridSize.value; startIndex++) {
-    checkLine(matchedGemIds, startIndex, gridSize.value)
+  for (let startIndex = 0; startIndex < props.size; startIndex++) {
+    checkLine(matchedGemIds, startIndex, props.size)
   }
   matchedGemIds.forEach((gemId) => removeGem(gemId))
 }
@@ -212,8 +212,8 @@ function checkLine(matchedGemIds, startIndex, step) {
   let singleColorLine = [] // gemIds
   let currentColor = null
   let matchCount = 1
-  for (let i = 0; i < gridSize.value; i++) {
-    const gemId = grid.value[startIndex + i * step].gemId
+  for (let i = 0; i < props.size; i++) {
+    const gemId = grid[startIndex + i * step].gemId
     const gem = gemsById.value[gemId]
     if (!gem) return
     if (!gem.interactive) {
@@ -236,21 +236,25 @@ function checkLine(matchedGemIds, startIndex, step) {
   resolveLine(matchedGemIds, singleColorLine, matchCount)
 }
 function resolveLine(matchedGemIds, singleColorLine, matchCount) {
-  if (matchCount < MATCH) return
+  if (matchCount < props.match) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
 }
 function handleActiveGem(gemId) {
   const activeGem = gemsById.value[gemId]
   updateActiveGemCoordinates(activeGem)
-  const adjacentGemId = getAdjacentGemId(activeGem)
-  if (!adjacentGemId) return
-  const adjacentGem = gemsById.value[adjacentGemId]
+  adjacentGemId.value = getAdjacentGemId(activeGem)
+  if (!adjacentGemId.value) return
+  const adjacentGem = gemsById.value[adjacentGemId.value]
   if (!adjacentGem.interactive) return
   if (
     checkPossibleSwap(adjacentGem.gridIndex, activeGem.color, gemId) ||
-    checkPossibleSwap(activeGem.gridIndex, adjacentGem.color, adjacentGemId)
+    checkPossibleSwap(
+      activeGem.gridIndex,
+      adjacentGem.color,
+      adjacentGemId.value
+    )
   ) {
-    swapGems(gemId, adjacentGemId)
+    swapGems(gemId, adjacentGemId.value)
   }
 }
 function updateActiveGemCoordinates(activeGem) {
@@ -269,33 +273,25 @@ function updateActiveGemCoordinates(activeGem) {
 function getAdjacentGemId(gem) {
   const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
     getMouseGemDistance(gem)
-  if (mouseGemDistance < maxDragDistance.value) {
-    adjacentGemId.value = null
-    return null
-  }
+  if (mouseGemDistance < maxDragDistance.value) return null
   const gridIndexStep = getGridIndexStep(mouseGemDistanceX, mouseGemDistanceY)
   const adjacentGridIndex = gem.gridIndex + gridIndexStep
   if (!adjacentGridIndex || !checkBorder(gem.gridIndex, adjacentGridIndex)) {
-    adjacentGemId.value = null
     return null
   }
-  const adjacentCell = grid.value[adjacentGridIndex]
-  if (!adjacentCell || !adjacentCell.gemId) {
-    adjacentGemId.value = null
-    return null
-  }
-  adjacentGemId.value = adjacentCell.gemId
+  const adjacentCell = grid[adjacentGridIndex]
+  if (!adjacentCell || !adjacentCell.gemId) return null
   return adjacentCell.gemId
 }
 function getGridIndexStep(dx, dy) {
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 1 : -1
-  return dy > 0 ? gridSize.value : -gridSize.value
+  return dy > 0 ? props.size : -props.size
 }
 function swapGems(gemId1, gemId2) {
   const gem1 = gemsById.value[gemId1]
   const gem2 = gemsById.value[gemId2]
-  const gem1Cell = grid.value[gem1.gridIndex]
-  const gem2Cell = grid.value[gem2.gridIndex]
+  const gem1Cell = grid[gem1.gridIndex]
+  const gem2Cell = grid[gem2.gridIndex]
   const tempGridIndex = gem1.gridIndex
   gem1.gridIndex = gem2.gridIndex
   gem2.gridIndex = tempGridIndex
@@ -307,15 +303,15 @@ function swapGems(gemId1, gemId2) {
   homeGem(gemId2)
 }
 function checkBorder(gridIndex, adjacentIndex) {
-  const currentCol = gridIndex % gridSize.value
-  const adjacentCol = adjacentIndex % gridSize.value
-  if (currentCol === 0 && adjacentCol === gridEdge.value) return
-  if (adjacentCol === 0 && currentCol === gridEdge.value) return
+  const currentCol = gridIndex % props.size
+  const adjacentCol = adjacentIndex % props.size
+  if (currentCol === 0 && adjacentCol === gridEdge) return
+  if (adjacentCol === 0 && currentCol === gridEdge) return
   return true
 }
 function checkPossibleSwap(gridIndex, color, excludedGemId) {
-  const row = Math.floor(gridIndex / gridSize.value)
-  const col = gridIndex % gridSize.value
+  const row = Math.floor(gridIndex / props.size)
+  const col = gridIndex % props.size
   const left = [0, -1]
   const right = [0, 1]
   const up = [-1, 0]
@@ -328,7 +324,7 @@ function checkPossibleSwap(gridIndex, color, excludedGemId) {
     1 +
     countConsecutiveMatches(row, col, down, color, excludedGemId) +
     countConsecutiveMatches(row, col, up, color, excludedGemId)
-  return horizontalMatches >= MATCH || verticalMatches >= MATCH
+  return horizontalMatches >= props.match || verticalMatches >= props.match
 }
 function countConsecutiveMatches(row, col, direction, color, excludedGemId) {
   let count = 0
@@ -350,10 +346,10 @@ function countConsecutiveMatches(row, col, direction, color, excludedGemId) {
   return count
 }
 function getGemIdAt(row, col) {
-  const isValidRow = row >= 0 && row < gridSize.value
-  const isValidCol = col >= 0 && col < gridSize.value
+  const isValidRow = row >= 0 && row < props.size
+  const isValidCol = col >= 0 && col < props.size
   if (!isValidRow || !isValidCol) return
-  return grid.value[row * gridSize.value + col].gemId
+  return grid[row * props.size + col].gemId
 }
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
@@ -400,7 +396,7 @@ function homeGem(gemId) {
   })
 }
 function getCellCoordinates(gridIndex) {
-  return { cellX: grid.value[gridIndex].x, cellY: grid.value[gridIndex].y }
+  return { cellX: grid[gridIndex].x, cellY: grid[gridIndex].y }
 }
 function getMouseGemDistance(gem) {
   const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
@@ -413,6 +409,10 @@ function getMouseGemDistance(gem) {
 }
 function onKeyDown(event) {
   if (event.key !== "o") return
+  if (activeGemId.value) {
+    homeGem(activeGemId.value)
+    return
+  }
   if (mouse.x < 0 || mouse.x > gridRect.width) return
   if (mouse.y < 0 || mouse.y > gridRect.height) return
   let closestGemId = null
