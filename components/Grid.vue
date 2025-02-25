@@ -17,7 +17,6 @@
       <div
         v-for="(gem, id) in gemsById"
         :key="id"
-        :data-gem-id="id"
         class="absolute group"
         :ref="(element) => (gem.element = element)"
         @mousedown="onMouseDown(id)"
@@ -37,9 +36,9 @@
             GEM_CLASSES[gem.color],
             {
               'group-hover:brightness-150 group-hover:scale-[1.2]':
-                !activeGemId && (!gem.cascading || !gem.removing),
+                !activeGemId && !gem.cascading && !gem.removing,
               'scale-[0.85] brightness-150': id === activeGemId,
-              'scale-[0.95] saturate-[0.4]': gemsById[id].cascading,
+              'scale-[0.95] saturate-[0.4]': gem.cascading || gem.removing,
             },
           ]"
         ></div>
@@ -52,8 +51,8 @@
 import anime from "animejs"
 import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
-const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
-// const GEMS_COLORS = ["GREEN", "BLUE"]
+// const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
+const GEMS_COLORS = ["GREEN", "BLUE"]
 const GEM_CLASSES = {
   GREEN: "green",
   BLUE: "blue",
@@ -114,62 +113,54 @@ function getHomeCoordinates(gridIndex) {
   return { homeX: grid[gridIndex].x, homeY: grid[gridIndex].y }
 }
 function cascadeGems() {
-  for (let col = gridEdge; col >= 0; col--) {
-    let missingGems = 0
-    let allAvailable = true
-    for (let row = 0; row < props.size; row++) {
+  for (let col = 0; col <= gridEdge; col++) {
+    for (let row = gridEdge; row >= 0; row--) {
       const gridIndex = row * props.size + col
       const gem = gemsById.value[grid[gridIndex].gemId]
-      if (!gem) {
-        missingGems++
-      } else if (gem.cascading || gem.removing || gem.swapping) {
-        allAvailable = false
+      if (gem && !gem.cascading && !gem.removing && !gem.swapping) {
+        const newGridIndex = findBottomEmptySpot(col, row)
+        if (newGridIndex !== gridIndex) {
+          grid[newGridIndex].gemId = grid[gridIndex].gemId
+          grid[gridIndex].gemId = null
+          gem.gridIndex = newGridIndex
+          animateCascade(gem, REMOVE_DELAY * CASCADE_REMOVE_RATIO)
+        }
       }
     }
-    if (!missingGems || !allAvailable) continue
-    cascadeUnstableGems(col)
-    cascadeNewGems(col, missingGems)
+    generateNewGems(col)
   }
 }
-function cascadeUnstableGems(col) {
-  let unstableColumnGems = []
-  let stableGems = 0 // bottom of line
-  let stableSoFar = true
-  for (let row = gridEdge; row >= 0; row--) {
-    const gridIndex = row * props.size + col
-    const cell = grid[gridIndex]
-    if (stableSoFar && cell.gemId) {
-      stableGems++
-      continue
-    }
-    if (!cell.gemId) {
-      stableSoFar = false
+function findBottomEmptySpot(col, startRow) {
+  let targetIndex = startRow * props.size + col
+  for (let row = startRow + 1; row <= gridEdge; row++) {
+    const nextIndex = row * props.size + col
+    if (!grid[nextIndex].gemId) {
+      targetIndex = nextIndex
     } else {
-      if (cell.gemId === activeGemId.value) homeGem(cell.gemId)
-      unstableColumnGems.push(cell.gemId)
-      cell.gemId = null
+      const gem = gemsById.value[grid[nextIndex].gemId]
+      if (!gem.cascading && !gem.removing && !gem.swapping) break
     }
   }
-  unstableColumnGems.forEach((gemId, i) => {
-    const row = gridEdge - i - stableGems
-    const gridIndex = row * props.size + col
-    grid[gridIndex].gemId = gemId
-    const gem = gemsById.value[gemId]
-    gem.gridIndex = gridIndex
-    animateCascade(gem, REMOVE_DELAY * CASCADE_REMOVE_RATIO)
-  })
+  return targetIndex
 }
-function cascadeNewGems(col, missingGems) {
-  for (let row = 0; row < missingGems; row++) {
+function generateNewGems(col) {
+  let topEmptyCount = 0
+  for (let row = 0; row < props.size; row++) {
+    const gridIndex = row * props.size + col
+    if (!grid[gridIndex].gemId) topEmptyCount++
+    else break
+  }
+  if (topEmptyCount === 0) return
+  for (let row = 0; row < topEmptyCount; row++) {
     const gridIndex = row * props.size + col
     const id = newId()
     grid[gridIndex].gemId = id
     const { homeX } = getHomeCoordinates(gridIndex)
     gemsById.value[id] = {
-      gridIndex: gridIndex,
+      gridIndex,
       color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
       x: homeX,
-      y: -(cellSize.value * (missingGems - row)) + cellSize.value / 2,
+      y: -(cellSize.value * (topEmptyCount - row)) + cellSize.value / 2,
       cascading: false,
       removing: false,
       swapping: false,
@@ -233,7 +224,7 @@ function animateCascade(gem, delay) {
     x: homeX,
     y: homeY,
     duration,
-    delay,
+    delay: delay,
     easing: "easeInOutExpo",
     complete: () => {
       gem.cascading = false
@@ -258,7 +249,7 @@ function homeGem(gemId) {
     duration: 300,
     easing: "easeOutQuad",
     complete: () => {
-      if (gem) gem.element.style.zIndex = "0" // check for already removed
+      if (gem && gem.element) gem.element.style.zIndex = "0"
       gem.swapping = false
     },
   })
@@ -275,7 +266,7 @@ function removeGem(gemId) {
       { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
       { value: 0, duration: REMOVE_DELAY * 0.7, easing: "easeInQuad" },
     ],
-    opacity: [{ value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" }],
+    opacity: { value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" },
     complete: () => delete gemsById.value[gemId],
   })
 }
