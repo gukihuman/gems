@@ -29,20 +29,22 @@ npm run build
     "color": "RED",
     "x": 0,
     "y": 0,
+    "velocityX": 0,
+    "velocityY": 0,
     "interactive": false,
     "swapping": false,
-    "element": null,
-    "animation": null
+    "element": null
   },
   "7521372547236283": {
     "gridIndex": 1,
     "color": "GREEN",
     "x": 0,
     "y": 0,
+    "velocityX": 0,
+    "velocityY": 0,
     "interactive": false,
     "swapping": false,
-    "element": null,
-    "animation": null
+    "element": null
   }
 }
 ```

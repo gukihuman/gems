@@ -52,7 +52,7 @@ import anime from "animejs"
 import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
 // const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
-const GEMS_COLORS = ["GREEN", "BLUE"]
+const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW"]
 const GEM_CLASSES = {
   GREEN: "green",
   BLUE: "blue",
@@ -60,13 +60,18 @@ const GEM_CLASSES = {
   ORANGE: "orange",
   PINK: "pink",
 }
-const BASE_FALL_DALAY = 400
-const DISTANCE_PER_SECOND = 400
-const REMOVE_DELAY = 500
+const REMOVE_DELAY = 600
+const REMOVE_SCALE = 0.95
 const CASCADE_REMOVE_RATIO = 0.3
 const CLICK_DELAY = 300
 const DELAY_AFTER_RESIZE = 50
 const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
+const MAX_VELOCITY = 400
+const ACCELERATION = 700
+const MOUSE_ACCELERATION = 2500
+const MOUSE_DAMPING = 0.3
+const DAMPING = 0.7
+
 const props = defineProps(["size", "minMatch"])
 const emit = defineEmits(["match"])
 const gridRef = ref(null)
@@ -87,6 +92,8 @@ const debouncedAfterResize = debounce(() => {
 let adjacentGemId = null
 let activationTime = null
 let gridRect = null
+let lastTime = performance.now()
+let isTabActive = true
 onMounted(() => {
   setGridCoordinates()
   addEventListener("resize", onResize)
@@ -94,13 +101,104 @@ onMounted(() => {
   addEventListener("mouseup", onMouseUp)
   addEventListener("keydown", onKeyDown)
   requestAnimationFrame(gameLoop)
+  lastTime = performance.now()
+  document.addEventListener("visibilitychange", onVisibilityChange)
 })
+function onVisibilityChange() {
+  isTabActive = !document.hidden
+  if (isTabActive) lastTime = performance.now()
+}
 // core
-function gameLoop() {
+function gameLoop(currentTime) {
+  if (!isTabActive) {
+    requestAnimationFrame(gameLoop)
+    return
+  }
+  const deltaTime = (currentTime - lastTime) / 1000
+  lastTime = currentTime
+
   cascadeGems()
+  Object.values(gemsById.value).forEach((gem) => move(gem, deltaTime))
   resolveMatches()
+  updateFade()
+  if (activeGemId.value) handleActiveGem(activeGemId.value)
+
   requestAnimationFrame(gameLoop)
 }
+// Update move function
+function getMouseHomeCoordinates(gem) {
+  // mouse active handle
+  if (grid[gem.gridIndex].gemId === activeGemId.value) {
+    const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
+      getMouseGemDistance(gem)
+    if (mouseGemDistance < maxDragDistance.value) {
+      return {
+        homeX: mouse.x,
+        homeY: mouse.y,
+        acceleration: MOUSE_ACCELERATION,
+        damping: MOUSE_DAMPING,
+      }
+    } else {
+      const angle = Math.atan2(mouseGemDistanceY, mouseGemDistanceX)
+      let { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
+      return {
+        homeX: homeX + maxDragDistance.value * Math.cos(angle),
+        homeY: homeY + maxDragDistance.value * Math.sin(angle),
+        acceleration: MOUSE_ACCELERATION,
+        damping: MOUSE_DAMPING,
+      }
+    }
+  } else {
+    return {
+      ...getHomeCoordinates(gem.gridIndex),
+      acceleration: ACCELERATION,
+      damping: DAMPING,
+    }
+  }
+}
+function move(gem, deltaTime) {
+  const { homeX, homeY, acceleration, damping } = getMouseHomeCoordinates(gem)
+
+  const dx = homeX - gem.x
+  const dy = homeY - gem.y
+  const distance = Math.sqrt(dx * dx + dy * dy)
+
+  // Proportional velocity based on distance (no overshoot)
+  const targetVelocityX = dx * acceleration * deltaTime
+  const targetVelocityY = dy * acceleration * deltaTime
+
+  // Smoothly interpolate current velocity toward target
+  gem.velocityX = (gem.velocityX + targetVelocityX) * damping
+  gem.velocityY = (gem.velocityY + targetVelocityY) * damping
+
+  // Cap velocity
+  const speed = Math.sqrt(
+    gem.velocityX * gem.velocityX + gem.velocityY * gem.velocityY
+  )
+  if (speed > MAX_VELOCITY) {
+    const scale = MAX_VELOCITY / speed
+    gem.velocityX *= scale
+    gem.velocityY *= scale
+  }
+
+  // Update position
+  gem.x += gem.velocityX * deltaTime
+  gem.y += gem.velocityY * deltaTime
+
+  // Only snap when not dragging
+  if (distance < 1 && speed < 10) {
+    gem.x = homeX
+    gem.y = homeY
+    gem.velocityX = 0
+    gem.velocityY = 0
+    if (gem.cascading) gem.cascading = false
+    if (gem.swapping) {
+      gem.swapping = false
+      if (gem.element) gem.element.style.zIndex = "0"
+    }
+  }
+}
+
 function setGridCoordinates() {
   gridRect = gridRef.value.getBoundingClientRect()
   cellSize.value = gridRect.width / props.size
@@ -120,6 +218,9 @@ function cascadeGems() {
       if (gem && !gem.cascading && !gem.removing && !gem.swapping) {
         const newGridIndex = findBottomEmptySpot(col, row)
         if (newGridIndex !== gridIndex) {
+          if (grid[gridIndex].gemId === activeGemId.value) {
+            activeGemId.value = null
+          }
           grid[newGridIndex].gemId = grid[gridIndex].gemId
           grid[gridIndex].gemId = null
           gem.gridIndex = newGridIndex
@@ -161,8 +262,11 @@ function generateNewGems(col) {
       color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
       x: homeX,
       y: -(cellSize.value * (topEmptyCount - row)) + cellSize.value / 2,
+      velocityX: 0,
+      velocityY: 0,
+      fadeProgress: 1,
+      removing: null,
       cascading: false,
-      removing: false,
       swapping: false,
       element: null,
     }
@@ -216,64 +320,40 @@ function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
 // animate
 function animateCascade(gem, delay) {
   gem.cascading = true
-  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
-  let distance = Math.max(Math.abs(homeX - gem.x), Math.abs(homeY - gem.y))
-  const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
-  gem.animation = anime({
-    targets: gem,
-    x: homeX,
-    y: homeY,
-    duration,
-    delay: delay,
-    easing: "easeInOutExpo",
-    complete: () => {
-      gem.cascading = false
-      if (grid[gem.gridIndex].gemId === adjacentGemId) {
-        nextTick(() => {
-          if (activeGemId.value) handleActiveGem(activeGemId.value)
-        })
-      }
-    },
-  })
 }
+// Update homeGem to reset velocity
 function homeGem(gemId) {
   activeGemId.value = null
   adjacentGemId = null
   activationTime = null
-  const gem = gemsById.value[gemId]
-  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
-  gem.animation = anime({
-    targets: gem,
-    x: homeX,
-    y: homeY,
-    duration: 300,
-    easing: "easeOutQuad",
-    complete: () => {
-      if (gem && gem.element) gem.element.style.zIndex = "0"
-      gem.swapping = false
-    },
-  })
 }
 function removeGem(gemId) {
   if (gemId === activeGemId.value) homeGem(gemId)
   const gem = gemsById.value[gemId]
-  grid[gem.gridIndex].gemId = null
-  gem.removing = true
+  gem.removing = performance.now()
   gem.element.style.filter = "brightness(1.5)"
-  gem.animation = anime({
-    targets: gem.element,
-    scale: [
-      { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
-      { value: 0, duration: REMOVE_DELAY * 0.7, easing: "easeInQuad" },
-    ],
-    opacity: { value: 0, duration: REMOVE_DELAY, easing: "easeInQuad" },
-    complete: () => delete gemsById.value[gemId],
+  setTimeout(() => {
+    grid[gem.gridIndex].gemId = null
+    delete gemsById.value[gemId]
+  }, REMOVE_DELAY)
+}
+function updateFade() {
+  Object.values(gemsById.value).forEach((gem) => {
+    if (gem.removing) {
+      const elapsed = performance.now() - gem.removing
+      gem.fadeProgress = Math.max(1 - elapsed / REMOVE_DELAY, 0)
+      const scale = 1 - (1 - REMOVE_SCALE) * (1 - gem.fadeProgress)
+      if (gem.element) {
+        gem.element.style.opacity = gem.fadeProgress
+        gem.element.style.transform = `scale(${scale})` // Use transform instead of scale
+      }
+    }
   })
 }
 // interact
 function handleActiveGem(gemId) {
+  console.log("wtf")
   const activeGem = gemsById.value[gemId]
-  updateActiveGemCoordinates(activeGem)
   adjacentGemId = getAdjacentGemId(activeGem)
   if (!adjacentGemId) return
   const adjacentGem = gemsById.value[adjacentGemId]
@@ -284,19 +364,6 @@ function handleActiveGem(gemId) {
   ) {
     swapGems(gemId, adjacentGemId)
   }
-}
-function updateActiveGemCoordinates(activeGem) {
-  const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
-    getMouseGemDistance(activeGem)
-  if (mouseGemDistance < maxDragDistance.value) {
-    activeGem.x = mouse.x
-    activeGem.y = mouse.y
-    return
-  }
-  const angle = Math.atan2(mouseGemDistanceY, mouseGemDistanceX)
-  const { homeX, homeY } = getHomeCoordinates(activeGem.gridIndex)
-  activeGem.x = homeX + maxDragDistance.value * Math.cos(angle)
-  activeGem.y = homeY + maxDragDistance.value * Math.sin(angle)
 }
 function getAdjacentGemId(gem) {
   const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
@@ -394,11 +461,7 @@ function getMouseGemDistance(gem) {
 // input
 function onResize() {
   setGridCoordinates()
-  Object.values(gemsById.value).forEach((gem) => {
-    gem.cascading = true
-    gem.removing = true
-    anime.remove(gem)
-  })
+  Object.values(gemsById.value).forEach((gem) => (gem.cascading = true))
   debouncedAfterResize()
 }
 function onMouseDown(gemId) {
