@@ -74,10 +74,10 @@ const grid = Array.from(Array(props.size ** 2), () => ({
   y: 0,
 }))
 const activeGemId = ref(null)
-const adjacentGemId = ref(null)
 const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
 const gridEdge = props.size - 1
 const mouse = { x: 0, y: 0 }
+let adjacentGemId = null
 let activationTime = null
 let gridRect = null
 onMounted(() => {
@@ -149,11 +149,11 @@ function cascadeStableGems(col, missingGems) {
     const gridIndex = row * props.size + col
     const id = newId()
     grid[gridIndex].gemId = id
-    const { cellX } = getCellCoordinates(gridIndex)
+    const { homeX } = getHomeCoordinates(gridIndex)
     gemsById.value[id] = {
       gridIndex: gridIndex,
       color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
-      x: cellX,
+      x: homeX,
       y: -(cellSize.value * (missingGems - row)) + cellSize.value / 2,
       interactive: true,
       element: null,
@@ -163,19 +163,19 @@ function cascadeStableGems(col, missingGems) {
 }
 function animateCascade(gem) {
   gem.interactive = false
-  const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
-  let distance = Math.max(Math.abs(cellX - gem.x), Math.abs(cellY - gem.y))
+  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
+  let distance = Math.max(Math.abs(homeX - gem.x), Math.abs(homeY - gem.y))
   const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
   anime({
     targets: gem,
-    x: cellX,
-    y: cellY,
+    x: homeX,
+    y: homeY,
     duration,
     delay: REMOVE_DELAY,
     easing: "easeInOutExpo",
     complete: () => {
       gem.interactive = true
-      if (grid[gem.gridIndex].gemId === adjacentGemId.value) {
+      if (grid[gem.gridIndex].gemId === adjacentGemId) {
         nextTick(() => handleActiveGem(activeGemId.value))
       }
     },
@@ -242,19 +242,15 @@ function resolveLine(matchedGemIds, singleColorLine, matchCount) {
 function handleActiveGem(gemId) {
   const activeGem = gemsById.value[gemId]
   updateActiveGemCoordinates(activeGem)
-  adjacentGemId.value = getAdjacentGemId(activeGem)
-  if (!adjacentGemId.value) return
-  const adjacentGem = gemsById.value[adjacentGemId.value]
+  adjacentGemId = getAdjacentGemId(activeGem)
+  if (!adjacentGemId) return
+  const adjacentGem = gemsById.value[adjacentGemId]
   if (!adjacentGem.interactive) return
   if (
     checkPossibleSwap(adjacentGem.gridIndex, activeGem.color, gemId) ||
-    checkPossibleSwap(
-      activeGem.gridIndex,
-      adjacentGem.color,
-      adjacentGemId.value
-    )
+    checkPossibleSwap(activeGem.gridIndex, adjacentGem.color, adjacentGemId)
   ) {
-    swapGems(gemId, adjacentGemId.value)
+    swapGems(gemId, adjacentGemId)
   }
 }
 function updateActiveGemCoordinates(activeGem) {
@@ -266,9 +262,9 @@ function updateActiveGemCoordinates(activeGem) {
     return
   }
   const angle = Math.atan2(mouseGemDistanceY, mouseGemDistanceX)
-  const { cellX, cellY } = getCellCoordinates(activeGem.gridIndex)
-  activeGem.x = cellX + maxDragDistance.value * Math.cos(angle)
-  activeGem.y = cellY + maxDragDistance.value * Math.sin(angle)
+  const { homeX, homeY } = getHomeCoordinates(activeGem.gridIndex)
+  activeGem.x = homeX + maxDragDistance.value * Math.cos(angle)
+  activeGem.y = homeY + maxDragDistance.value * Math.sin(angle)
 }
 function getAdjacentGemId(gem) {
   const { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance } =
@@ -364,49 +360,6 @@ function onMouseDown(gemId) {
     homeGem(activeGemId.value)
   }
 }
-function onMouseMove(event) {
-  mouse.x = event.clientX - gridRect.left
-  mouse.y = event.clientY - gridRect.top
-  if (activeGemId.value) handleActiveGem(activeGemId.value)
-}
-function onMouseUp() {
-  if (!activeGemId.value) return
-  const { distance } = getMouseGemDistance(gemsById.value[activeGemId.value])
-  const timeExceedsDelay = Date.now() - activationTime > CLICK_DELAY
-  if (timeExceedsDelay || distance > maxDragDistance.value) {
-    homeGem(activeGemId.value)
-  }
-}
-function homeGem(gemId) {
-  activeGemId.value = null
-  adjacentGemId.value = null
-  activationTime = null
-  const gem = gemsById.value[gemId]
-  const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
-  anime({
-    targets: gem,
-    x: cellX,
-    y: cellY,
-    duration: 300,
-    easing: "easeOutQuad",
-    complete: () => {
-      if (gem) gem.element.style.zIndex = "0" // check for already removed
-      gem.swapping = false
-    },
-  })
-}
-function getCellCoordinates(gridIndex) {
-  return { cellX: grid[gridIndex].x, cellY: grid[gridIndex].y }
-}
-function getMouseGemDistance(gem) {
-  const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
-  const mouseGemDistanceX = mouse.x - cellX
-  const mouseGemDistanceY = mouse.y - cellY
-  const mouseGemDistance = Math.sqrt(
-    mouseGemDistanceX ** 2 + mouseGemDistanceY ** 2
-  )
-  return { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance }
-}
 function onKeyDown(event) {
   if (event.key !== "o") return
   if (activeGemId.value) {
@@ -425,5 +378,48 @@ function onKeyDown(event) {
     }
   })
   onMouseDown(closestGemId)
+}
+function onMouseMove(event) {
+  mouse.x = event.clientX - gridRect.left
+  mouse.y = event.clientY - gridRect.top
+  if (activeGemId.value) handleActiveGem(activeGemId.value)
+}
+function onMouseUp() {
+  if (!activeGemId.value) return
+  const { distance } = getMouseGemDistance(gemsById.value[activeGemId.value])
+  const timeExceedsDelay = Date.now() - activationTime > CLICK_DELAY
+  if (timeExceedsDelay || distance > maxDragDistance.value) {
+    homeGem(activeGemId.value)
+  }
+}
+function homeGem(gemId) {
+  activeGemId.value = null
+  adjacentGemId = null
+  activationTime = null
+  const gem = gemsById.value[gemId]
+  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
+  anime({
+    targets: gem,
+    x: homeX,
+    y: homeY,
+    duration: 300,
+    easing: "easeOutQuad",
+    complete: () => {
+      if (gem) gem.element.style.zIndex = "0" // check for already removed
+      gem.swapping = false
+    },
+  })
+}
+function getHomeCoordinates(gridIndex) {
+  return { homeX: grid[gridIndex].x, homeY: grid[gridIndex].y }
+}
+function getMouseGemDistance(gem) {
+  const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
+  const mouseGemDistanceX = mouse.x - homeX
+  const mouseGemDistanceY = mouse.y - homeY
+  const mouseGemDistance = Math.sqrt(
+    mouseGemDistanceX ** 2 + mouseGemDistanceY ** 2
+  )
+  return { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance }
 }
 </script>
