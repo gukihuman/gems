@@ -94,11 +94,11 @@ let activationTime = null
 let gridRect = null
 
 const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
+const gridEdge = computed(() => gridSize.value - 1)
 
 onMounted(() => {
   setGridCoordinates()
   addEventListener("resize", setGridCoordinates)
-  requestAnimationFrame(gameLoop)
   addEventListener("mousemove", onMouseMove)
   addEventListener("mouseup", onMouseUp)
   addEventListener("keydown", (event) => {
@@ -107,6 +107,7 @@ onMounted(() => {
       if (closestGem) onMouseDown(closestGem.id)
     }
   })
+  requestAnimationFrame(gameLoop)
 })
 
 function gameLoop() {
@@ -124,7 +125,7 @@ function setGridCoordinates() {
   })
 }
 function cascadeGems() {
-  for (let col = gridSize.value - 1; col >= 0; col--) {
+  for (let col = gridEdge.value; col >= 0; col--) {
     let missingGems = 0
     let allAvailable = true
     for (let row = 0; row < gridSize.value; row++) {
@@ -134,56 +135,56 @@ function cascadeGems() {
       else if (!gem.interactive || gem.swapping) allAvailable = false
     }
     if (!missingGems || !allAvailable) continue
-    dropUnstableGems(col)
-    for (let row = 0; row < missingGems; row++) {
-      const spawnOffsetY =
-        -(cellSize.value * (missingGems - row)) + cellSize.value / 2
-      generateGem(row * gridSize.value + col, spawnOffsetY)
-    }
+    cascadeUnstableGems(col)
+    cascadeStableGems(col, missingGems)
   }
 }
-function dropUnstableGems(col) {
+function cascadeUnstableGems(col) {
   let unstableColumnGems = []
   let stableGems = 0 // bottom of line
   let stableSoFar = true
-  for (let row = gridSize.value - 1; row >= 0; row--) {
+  for (let row = gridEdge.value; row >= 0; row--) {
     const gridIndex = row * gridSize.value + col
-    if (stableSoFar && grid.value[gridIndex].gemId) {
+    const cell = grid.value[gridIndex]
+    if (stableSoFar && cell.gemId) {
       stableGems++
       continue
     }
-    if (!grid.value[gridIndex].gemId) {
+    if (!cell.gemId) {
       stableSoFar = false
     } else {
-      unstableColumnGems.push(grid.value[gridIndex].gemId)
-      grid.value[gridIndex].gemId = null
+      if (cell.gemId === activeGemId.value) homeGem(cell.gemId)
+      unstableColumnGems.push(cell.gemId)
+      cell.gemId = null
     }
   }
-  unstableColumnGems.forEach((gemId, row) => {
-    if (gemId === activeGemId.value) homeGem(gemId)
-    const reverseRow = gridSize.value - 1 - row - stableGems
-    const gridIndex = reverseRow * gridSize.value + col
+  unstableColumnGems.forEach((gemId, i) => {
+    const row = gridEdge.value - i - stableGems
+    const gridIndex = row * gridSize.value + col
     grid.value[gridIndex].gemId = gemId
     const gem = gemsById.value[gemId]
     gem.gridIndex = gridIndex
-    animateFall(gem)
+    animateCascade(gem)
   })
 }
-function generateGem(gridIndex, spawnOffsetY) {
-  const id = newId()
-  grid.value[gridIndex].gemId = id
-  const { cellX } = getCellCoordinates(gridIndex)
-  gemsById.value[id] = {
-    gridIndex: gridIndex,
-    color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
-    x: cellX,
-    y: spawnOffsetY,
-    interactive: true,
-    element: null,
+function cascadeStableGems(col, missingGems) {
+  for (let row = 0; row < missingGems; row++) {
+    const gridIndex = row * gridSize.value + col
+    const id = newId()
+    grid.value[gridIndex].gemId = id
+    const { cellX } = getCellCoordinates(gridIndex)
+    gemsById.value[id] = {
+      gridIndex: gridIndex,
+      color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
+      x: cellX,
+      y: -(cellSize.value * (missingGems - row)) + cellSize.value / 2,
+      interactive: true,
+      element: null,
+    }
+    animateCascade(gemsById.value[id])
   }
-  animateFall(gemsById.value[id])
 }
-function animateFall(gem) {
+function animateCascade(gem) {
   gem.interactive = false
   const { cellX, cellY } = getCellCoordinates(gem.gridIndex)
   let distance = Math.max(Math.abs(cellX - gem.x), Math.abs(cellY - gem.y))
@@ -326,8 +327,8 @@ function swapGems(gemId1, gemId2) {
 function checkBorder(gridIndex, adjacentIndex) {
   const currentCol = gridIndex % gridSize.value
   const adjacentCol = adjacentIndex % gridSize.value
-  if (currentCol === 0 && adjacentCol === gridSize.value - 1) return
-  if (currentCol === gridSize.value - 1 && adjacentCol === 0) return
+  if (currentCol === 0 && adjacentCol === gridEdge.value) return
+  if (adjacentCol === 0 && currentCol === gridEdge.value) return
   return true
 }
 function checkPossibleSwap(gridIndex, color, excludedGemId) {
