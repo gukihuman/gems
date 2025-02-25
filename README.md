@@ -31,7 +31,8 @@ npm run build
     "y": 0,
     "interactive": false,
     "swapping": false,
-    "element": null
+    "element": null,
+    "animation": null
   },
   "7521372547236283": {
     "gridIndex": 1,
@@ -40,7 +41,8 @@ npm run build
     "y": 0,
     "interactive": false,
     "swapping": false,
-    "element": null
+    "element": null,
+    "animation": null
   }
 }
 ```

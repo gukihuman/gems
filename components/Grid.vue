@@ -50,21 +50,26 @@
 <script setup>
 /** x and y are always pixel coordinates within grid, grid itself uses row / col as coordinates and flat indices */
 import anime from "animejs"
-import newId from "./utils/newId"
-const GEMS_COLORS = ["ORANGE", "LIME", "INDIGO", "PURPLE", "YELLOW"]
+import newId from "~/utils/newId"
+import debounce from "~/utils/debounce"
+const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
+// const GEMS_COLORS = ["GREEN", "BLUE"]
 const GEM_CLASSES = {
-  ORANGE: "orange",
-  LIME: "lime",
-  INDIGO: "indigo",
-  PURPLE: "purple",
+  GREEN: "green",
+  BLUE: "blue",
   YELLOW: "yellow",
+  ORANGE: "orange",
+  PINK: "pink",
 }
 const BASE_FALL_DALAY = 400
 const DISTANCE_PER_SECOND = 400
 const REMOVE_DELAY = 500
+const CASCADE_REMOVE_RATIO = 0.3
 const CLICK_DELAY = 300
+const DELAY_AFTER_RESIZE = 50
 const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
-const props = defineProps(["size", "match"])
+const props = defineProps(["size", "minMatch"])
+const emit = defineEmits(["match"])
 const gridRef = ref(null)
 const gemsById = ref({})
 const cellSize = ref(0)
@@ -77,12 +82,15 @@ const activeGemId = ref(null)
 const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
 const gridEdge = props.size - 1
 const mouse = { x: 0, y: 0 }
+const debouncedAfterResize = debounce(() => {
+  Object.values(gemsById.value).forEach((gem) => animateCascade(gem, 0))
+}, DELAY_AFTER_RESIZE)
 let adjacentGemId = null
 let activationTime = null
 let gridRect = null
 onMounted(() => {
   setGridCoordinates()
-  addEventListener("resize", setGridCoordinates)
+  addEventListener("resize", onResize)
   addEventListener("mousemove", onMouseMove)
   addEventListener("mouseup", onMouseUp)
   addEventListener("keydown", onKeyDown)
@@ -145,7 +153,7 @@ function cascadeUnstableGems(col) {
     grid[gridIndex].gemId = gemId
     const gem = gemsById.value[gemId]
     gem.gridIndex = gridIndex
-    animateCascade(gem)
+    animateCascade(gem, REMOVE_DELAY * CASCADE_REMOVE_RATIO)
   })
 }
 function cascadeStableGems(col, missingGems) {
@@ -160,9 +168,10 @@ function cascadeStableGems(col, missingGems) {
       x: homeX,
       y: -(cellSize.value * (missingGems - row)) + cellSize.value / 2,
       interactive: true,
+      swapping: false,
       element: null,
     }
-    animateCascade(gemsById.value[id])
+    animateCascade(gemsById.value[id], REMOVE_DELAY * CASCADE_REMOVE_RATIO)
   }
 }
 // match
@@ -179,52 +188,55 @@ function resolveMatches() {
 }
 function checkLine(matchedGemIds, startIndex, step) {
   let singleColorLine = [] // gemIds
-  let currentColor = null
+  let color = null
   let matchCount = 1
   for (let i = 0; i < props.size; i++) {
     const gemId = grid[startIndex + i * step].gemId
     const gem = gemsById.value[gemId]
     if (!gem) return
     if (!gem.interactive) {
-      resolveLine(matchedGemIds, singleColorLine, matchCount)
+      resolveLine(matchedGemIds, singleColorLine, color, matchCount)
       singleColorLine = []
-      currentColor = null
+      color = null
       matchCount = 1
       continue
     }
-    if (gem.color === currentColor) {
+    if (gem.color === color) {
       singleColorLine.push(gemId)
       matchCount++
     } else {
-      resolveLine(matchedGemIds, singleColorLine, matchCount)
+      resolveLine(matchedGemIds, singleColorLine, color, matchCount)
       singleColorLine = [gemId]
-      currentColor = gem.color
+      color = gem.color
       matchCount = 1
     }
   }
-  resolveLine(matchedGemIds, singleColorLine, matchCount)
+  resolveLine(matchedGemIds, singleColorLine, color, matchCount)
 }
-function resolveLine(matchedGemIds, singleColorLine, matchCount) {
-  if (matchCount < props.match) return
+function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
+  if (matchCount < props.minMatch) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
+  emit("match", color, matchCount)
 }
 // animate
-function animateCascade(gem) {
+function animateCascade(gem, delay) {
   gem.interactive = false
   const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
   let distance = Math.max(Math.abs(homeX - gem.x), Math.abs(homeY - gem.y))
   const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
-  anime({
+  gem.animation = anime({
     targets: gem,
     x: homeX,
     y: homeY,
     duration,
-    delay: REMOVE_DELAY,
+    delay,
     easing: "easeInOutExpo",
     complete: () => {
       gem.interactive = true
       if (grid[gem.gridIndex].gemId === adjacentGemId) {
-        nextTick(() => handleActiveGem(activeGemId.value))
+        nextTick(() => {
+          if (activeGemId.value) handleActiveGem(activeGemId.value)
+        })
       }
     },
   })
@@ -235,7 +247,7 @@ function homeGem(gemId) {
   activationTime = null
   const gem = gemsById.value[gemId]
   const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
-  anime({
+  gem.animation = anime({
     targets: gem,
     x: homeX,
     y: homeY,
@@ -253,7 +265,7 @@ function removeGem(gemId) {
   grid[gem.gridIndex].gemId = null
   gem.interactive = false
   gem.element.style.filter = "brightness(1.5)"
-  anime({
+  gem.animation = anime({
     targets: gem.element,
     scale: [
       { value: 1.2, duration: REMOVE_DELAY * 0.3, easing: "easeOutQuad" },
@@ -330,7 +342,9 @@ function checkPossibleSwap(gridIndex, color, excludedGemId) {
     1 +
     countConsecutiveMatches(row, col, down, color, excludedGemId) +
     countConsecutiveMatches(row, col, up, color, excludedGemId)
-  return horizontalMatches >= props.match || verticalMatches >= props.match
+  return (
+    horizontalMatches >= props.minMatch || verticalMatches >= props.minMatch
+  )
 }
 function countConsecutiveMatches(row, col, direction, color, excludedGemId) {
   let count = 0
@@ -382,6 +396,14 @@ function getMouseGemDistance(gem) {
   return { mouseGemDistanceX, mouseGemDistanceY, mouseGemDistance }
 }
 // input
+function onResize() {
+  setGridCoordinates()
+  Object.values(gemsById.value).forEach((gem) => {
+    gem.interactive = false
+    anime.remove(gem)
+  })
+  debouncedAfterResize()
+}
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
   if (!gem.interactive) return
