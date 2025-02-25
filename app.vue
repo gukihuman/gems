@@ -9,6 +9,6 @@
 </template>
 <script setup>
 function handleMatch(color, matchCount) {
-  console.log(color, matchCount)
+  // console.log(color, matchCount)
 }
 </script>

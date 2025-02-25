@@ -37,9 +37,9 @@
             GEM_CLASSES[gem.color],
             {
               'group-hover:brightness-150 group-hover:scale-[1.2]':
-                !activeGemId && gem.interactive,
+                !activeGemId && (!gem.cascading || !gem.removing),
               'scale-[0.85] brightness-150': id === activeGemId,
-              'scale-[0.95] saturate-[0.4]': !gemsById[id].interactive,
+              'scale-[0.95] saturate-[0.4]': gemsById[id].cascading,
             },
           ]"
         ></div>
@@ -120,12 +120,15 @@ function cascadeGems() {
     for (let row = 0; row < props.size; row++) {
       const gridIndex = row * props.size + col
       const gem = gemsById.value[grid[gridIndex].gemId]
-      if (!gem) missingGems++
-      else if (!gem.interactive || gem.swapping) allAvailable = false
+      if (!gem) {
+        missingGems++
+      } else if (gem.cascading || gem.removing || gem.swapping) {
+        allAvailable = false
+      }
     }
     if (!missingGems || !allAvailable) continue
     cascadeUnstableGems(col)
-    cascadeStableGems(col, missingGems)
+    cascadeNewGems(col, missingGems)
   }
 }
 function cascadeUnstableGems(col) {
@@ -156,7 +159,7 @@ function cascadeUnstableGems(col) {
     animateCascade(gem, REMOVE_DELAY * CASCADE_REMOVE_RATIO)
   })
 }
-function cascadeStableGems(col, missingGems) {
+function cascadeNewGems(col, missingGems) {
   for (let row = 0; row < missingGems; row++) {
     const gridIndex = row * props.size + col
     const id = newId()
@@ -167,7 +170,8 @@ function cascadeStableGems(col, missingGems) {
       color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
       x: homeX,
       y: -(cellSize.value * (missingGems - row)) + cellSize.value / 2,
-      interactive: true,
+      cascading: false,
+      removing: false,
       swapping: false,
       element: null,
     }
@@ -194,7 +198,7 @@ function checkLine(matchedGemIds, startIndex, step) {
     const gemId = grid[startIndex + i * step].gemId
     const gem = gemsById.value[gemId]
     if (!gem) return
-    if (!gem.interactive) {
+    if (gem.cascading || gem.removing) {
       resolveLine(matchedGemIds, singleColorLine, color, matchCount)
       singleColorLine = []
       color = null
@@ -220,7 +224,7 @@ function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
 }
 // animate
 function animateCascade(gem, delay) {
-  gem.interactive = false
+  gem.cascading = true
   const { homeX, homeY } = getHomeCoordinates(gem.gridIndex)
   let distance = Math.max(Math.abs(homeX - gem.x), Math.abs(homeY - gem.y))
   const duration = BASE_FALL_DALAY + 1000 * (distance / DISTANCE_PER_SECOND)
@@ -232,7 +236,7 @@ function animateCascade(gem, delay) {
     delay,
     easing: "easeInOutExpo",
     complete: () => {
-      gem.interactive = true
+      gem.cascading = false
       if (grid[gem.gridIndex].gemId === adjacentGemId) {
         nextTick(() => {
           if (activeGemId.value) handleActiveGem(activeGemId.value)
@@ -263,7 +267,7 @@ function removeGem(gemId) {
   if (gemId === activeGemId.value) homeGem(gemId)
   const gem = gemsById.value[gemId]
   grid[gem.gridIndex].gemId = null
-  gem.interactive = false
+  gem.removing = true
   gem.element.style.filter = "brightness(1.5)"
   gem.animation = anime({
     targets: gem.element,
@@ -282,7 +286,7 @@ function handleActiveGem(gemId) {
   adjacentGemId = getAdjacentGemId(activeGem)
   if (!adjacentGemId) return
   const adjacentGem = gemsById.value[adjacentGemId]
-  if (!adjacentGem.interactive) return
+  if (adjacentGem.cascading || adjacentGem.removing) return
   if (
     checkPossibleSwap(adjacentGem.gridIndex, activeGem.color, gemId) ||
     checkPossibleSwap(activeGem.gridIndex, adjacentGem.color, adjacentGemId)
@@ -355,7 +359,8 @@ function countConsecutiveMatches(row, col, direction, color, excludedGemId) {
   while (
     gemId &&
     gemId !== excludedGemId &&
-    gemsById.value[gemId].interactive &&
+    !gemsById.value[gemId].cascading &&
+    !gemsById.value[gemId].removing &&
     gemsById.value[gemId].color === color
   ) {
     count++
@@ -399,14 +404,15 @@ function getMouseGemDistance(gem) {
 function onResize() {
   setGridCoordinates()
   Object.values(gemsById.value).forEach((gem) => {
-    gem.interactive = false
+    gem.cascading = true
+    gem.removing = true
     anime.remove(gem)
   })
   debouncedAfterResize()
 }
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
-  if (!gem.interactive) return
+  if (gem.cascading || gem.removing) return
   if (!activeGemId.value) {
     activeGemId.value = gemId
     handleActiveGem(gemId)
