@@ -2,50 +2,65 @@
   <div
     class="flex justify-center items-center h-screen bg-slate-500 bg-circles"
   >
-    <div class="flex gap-4 w-full justify-center">
-      <DamageLog :damageLogs="damageLogs" />
-      <Grid :size="GRID_SIZE" :min-match="MIN_MATCH" @match="handleMatch" />
-      <div class="w-80"></div>
+    <div class="flex flex-col gap-8 w-full">
+      <div class="flex justify-center gap-2 text-slate-300">
+        <button
+          @click="fileSave('gems.json', getStorage())"
+          class="bg-slate-600 rounded-md w-16 pb-1 hover:bg-slate-700"
+        >
+          save
+        </button>
+        <button
+          @click="onFileLoad"
+          class="bg-slate-600 rounded-md w-16 pb-1 hover:bg-slate-700"
+        >
+          load
+        </button>
+      </div>
+      <Game @state-updated="handleStateUpdate" />
     </div>
   </div>
 </template>
 <script setup>
-const DAMAGE = [2, 3]
-const GRID_SIZE = 8
-const MIN_MATCH = 3
-const MAX_MULTIPLIER = 100
-const MULTIPLIER = [1, 5, 20, 50, 70, MAX_MULTIPLIER] // 3, 4, 5, 6, 7, 8
-const damageLogs = ref([])
-const matchQueue = []
-let isProcessingQueue = false
-function handleMatch(color, matchCount) {
-  matchQueue.push({ color, count: matchCount })
-  if (!isProcessingQueue) processMatchQueue()
+import fileSave from "./utils/fileSave"
+import fileLoad from "./utils/fileLoad"
+import debounce from "./utils/debounce"
+import timestamp from "./utils/timestamp"
+
+const APP_LOCAL_STORAGE_KEY = "gems"
+const DEBOUNCE_DELAY = 300
+
+const experience = ref(0)
+
+const debouncedLocalStorageSave = debounce(() => {
+  console.log("updated, experience: ", experience.value)
+  localStorageSave()
+}, DEBOUNCE_DELAY)
+
+onMounted(localStorageLoad)
+
+function handleStateUpdate(state) {
+  experience.value += state.experience
+  debouncedLocalStorageSave()
 }
-function processMatchQueue() {
-  if (matchQueue.length === 0) {
-    isProcessingQueue = false
-    return
+function injectStorage(storage) {
+  experience.value = storage.experience
+}
+function getStorage() {
+  return {
+    experience: experience.value,
   }
-  isProcessingQueue = true
-  const nextMatch = matchQueue.shift()
-  damageLogs.value.unshift({
-    id: Math.random(),
-    color: nextMatch.color,
-    count: nextMatch.count,
-    multiplier: getMultiplier(nextMatch.count),
-    ...getDamage(nextMatch.count),
-  })
-  damageLogs.value.splice(10)
-  setTimeout(() => processMatchQueue(), 300)
 }
-function getMultiplier(count) {
-  return count <= 8 ? MULTIPLIER[count - 3] : MAX_MULTIPLIER
+function localStorageLoad() {
+  const storageRaw = localStorage.getItem(APP_LOCAL_STORAGE_KEY)
+  if (storageRaw) injectStorage(JSON.parse(storageRaw))
 }
-function getDamage(count) {
-  const randomAddition = Math.random() * (DAMAGE[1] - DAMAGE[0])
-  const baseDamage = Math.round(DAMAGE[0] + randomAddition)
-  const fullDamage = Math.round(baseDamage * getMultiplier(count))
-  return { baseDamage, fullDamage }
+function localStorageSave() {
+  localStorage.setItem(APP_LOCAL_STORAGE_KEY, JSON.stringify(getStorage()))
+  console.log(`⏬ local storage updated [${timestamp()}]`)
+}
+async function onFileLoad() {
+  await fileLoad(injectStorage)
+  debouncedLocalStorageSave()
 }
 </script>

@@ -66,6 +66,7 @@ const CLICK_DELAY = 300
 const DELAY_AFTER_RESIZE = 50
 const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
 const MAX_VELOCITY = 400
+const MAX_DELTA_TIME = 0.05 // cap at 1/20th of a second in case of lag
 const ACCELERATION = 700
 const MOUSE_ACCELERATION = 2500
 const MOUSE_DAMPING = 0.3
@@ -113,7 +114,8 @@ function gameLoop(currentTime) {
     requestAnimationFrame(gameLoop)
     return
   }
-  const deltaTime = (currentTime - lastTime) / 1000
+  let deltaTime = (currentTime - lastTime) / 1000
+  deltaTime = Math.min(deltaTime, MAX_DELTA_TIME) // cap lags
   lastTime = currentTime
 
   cascadeGems()
