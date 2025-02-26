@@ -38,7 +38,7 @@
               'group-hover:brightness-150 group-hover:scale-[1.2]':
                 !activeGemId && !gem.cascading && !gem.removing,
               'scale-[0.85] brightness-150': id === activeGemId,
-              'scale-[0.95] saturate-[0.4]': gem.cascading || gem.removing,
+              'scale-[0.95] saturate-[0.4]': gem.cascading,
             },
           ]"
         ></div>
@@ -52,8 +52,6 @@ import anime from "animejs"
 import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
 const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
-// const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE"]
-// const GEMS_COLORS = ["GREEN", "BLUE"]
 const GEM_CLASSES = {
   GREEN: "green",
   BLUE: "blue",
@@ -61,8 +59,9 @@ const GEM_CLASSES = {
   ORANGE: "orange",
   PINK: "pink",
 }
-const REMOVE_DELAY = 400
-const REMOVE_SCALE = 0.95
+const REMOVE_DELAY = 500
+const REMOVE_FLUCTUATION = 50
+const REMOVE_SCALE = 1.5
 const CLICK_DELAY = 300
 const DELAY_AFTER_RESIZE = 50
 const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
@@ -270,6 +269,7 @@ function generateNewGems(col) {
       velocityY: 0,
       fadeProgress: 1,
       removing: null,
+      removingAnimTime: Infinity,
       cascading: true,
       swapping: false,
       element: null,
@@ -329,8 +329,8 @@ function homeGem(gemId) {
 function removeGem(gemId) {
   if (gemId === activeGemId.value) homeGem(gemId)
   const gem = gemsById.value[gemId]
-  gem.removing = performance.now()
-  gem.element.style.filter = "brightness(1.5)"
+  gem.removing = true
+  gem.removingAnimTime = performance.now() + Math.random() * REMOVE_FLUCTUATION
   setTimeout(() => {
     grid[gem.gridIndex].gemId = null
     delete gemsById.value[gemId]
@@ -339,12 +339,17 @@ function removeGem(gemId) {
 function updateFade() {
   Object.values(gemsById.value).forEach((gem) => {
     if (gem.removing) {
-      const elapsed = performance.now() - gem.removing
+      const now = performance.now()
+      if (now < gem.removingAnimTime) return
+
+      const elapsed = performance.now() - gem.removingAnimTime
       gem.fadeProgress = Math.max(1 - elapsed / REMOVE_DELAY, 0)
-      const scale = 1 - (1 - REMOVE_SCALE) * (1 - gem.fadeProgress)
+      const scale = 1 + (REMOVE_SCALE - 1) * (1 - gem.fadeProgress)
+      const brightness = 1.5 - 1 * (1 - gem.fadeProgress)
       if (gem.element) {
         gem.element.style.opacity = gem.fadeProgress
         gem.element.style.transform = `scale(${scale})`
+        gem.element.style.filter = `brightness(${brightness})`
       }
     }
   })
