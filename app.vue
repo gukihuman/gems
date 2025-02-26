@@ -2,7 +2,7 @@
   <div
     class="flex justify-center items-center h-screen bg-slate-500 bg-circles"
   >
-    <div class="flex flex-col gap-12 w-full">
+    <div class="flex flex-col gap-8 w-full pb-8">
       <div class="flex justify-center gap-2 text-slate-300">
         <button
           @click="fileSave('gems.json', getStorage())"
