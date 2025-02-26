@@ -51,8 +51,9 @@
 import anime from "animejs"
 import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
-// const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
-const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW"]
+const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
+// const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE"]
+// const GEMS_COLORS = ["GREEN", "BLUE"]
 const GEM_CLASSES = {
   GREEN: "green",
   BLUE: "blue",
@@ -60,9 +61,8 @@ const GEM_CLASSES = {
   ORANGE: "orange",
   PINK: "pink",
 }
-const REMOVE_DELAY = 600
+const REMOVE_DELAY = 400
 const REMOVE_SCALE = 0.95
-const CASCADE_REMOVE_RATIO = 0.3
 const CLICK_DELAY = 300
 const DELAY_AFTER_RESIZE = 50
 const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
@@ -87,7 +87,7 @@ const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
 const gridEdge = props.size - 1
 const mouse = { x: 0, y: 0 }
 const debouncedAfterResize = debounce(() => {
-  Object.values(gemsById.value).forEach((gem) => animateCascade(gem, 0))
+  Object.values(gemsById.value).forEach((gem) => (gem.cascading = true))
 }, DELAY_AFTER_RESIZE)
 let adjacentGemId = null
 let activationTime = null
@@ -215,7 +215,7 @@ function cascadeGems() {
     for (let row = gridEdge; row >= 0; row--) {
       const gridIndex = row * props.size + col
       const gem = gemsById.value[grid[gridIndex].gemId]
-      if (gem && !gem.cascading && !gem.removing && !gem.swapping) {
+      if (gem && !gem.removing) {
         const newGridIndex = findBottomEmptySpot(col, row)
         if (newGridIndex !== gridIndex) {
           if (grid[gridIndex].gemId === activeGemId.value) {
@@ -224,7 +224,7 @@ function cascadeGems() {
           grid[newGridIndex].gemId = grid[gridIndex].gemId
           grid[gridIndex].gemId = null
           gem.gridIndex = newGridIndex
-          animateCascade(gem, REMOVE_DELAY * CASCADE_REMOVE_RATIO)
+          gem.cascading = true
         }
       }
     }
@@ -235,12 +235,8 @@ function findBottomEmptySpot(col, startRow) {
   let targetIndex = startRow * props.size + col
   for (let row = startRow + 1; row <= gridEdge; row++) {
     const nextIndex = row * props.size + col
-    if (!grid[nextIndex].gemId) {
-      targetIndex = nextIndex
-    } else {
-      const gem = gemsById.value[grid[nextIndex].gemId]
-      if (!gem.cascading && !gem.removing && !gem.swapping) break
-    }
+    const gem = gemsById.value[grid[nextIndex].gemId]
+    if (!gem) targetIndex = nextIndex
   }
   return targetIndex
 }
@@ -250,6 +246,12 @@ function generateNewGems(col) {
     const gridIndex = row * props.size + col
     if (!grid[gridIndex].gemId) topEmptyCount++
     else break
+  }
+  let cascadingCount = 0
+  for (let row = 0; row < props.size; row++) {
+    const gridIndex = row * props.size + col
+    const gem = gemsById.value[grid[gridIndex].gemId]
+    if (gem && gem.cascading) cascadingCount++
   }
   if (topEmptyCount === 0) return
   for (let row = 0; row < topEmptyCount; row++) {
@@ -261,16 +263,17 @@ function generateNewGems(col) {
       gridIndex,
       color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
       x: homeX,
-      y: -(cellSize.value * (topEmptyCount - row)) + cellSize.value / 2,
+      y:
+        -(cellSize.value * (topEmptyCount + cascadingCount - row)) +
+        cellSize.value / 2,
       velocityX: 0,
       velocityY: 0,
       fadeProgress: 1,
       removing: null,
-      cascading: false,
+      cascading: true,
       swapping: false,
       element: null,
     }
-    animateCascade(gemsById.value[id], REMOVE_DELAY * CASCADE_REMOVE_RATIO)
   }
 }
 // match
@@ -317,11 +320,7 @@ function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
   emit("match", color, matchCount)
 }
-// animate
-function animateCascade(gem, delay) {
-  gem.cascading = true
-}
-// Update homeGem to reset velocity
+// previously animation
 function homeGem(gemId) {
   activeGemId.value = null
   adjacentGemId = null
@@ -345,14 +344,13 @@ function updateFade() {
       const scale = 1 - (1 - REMOVE_SCALE) * (1 - gem.fadeProgress)
       if (gem.element) {
         gem.element.style.opacity = gem.fadeProgress
-        gem.element.style.transform = `scale(${scale})` // Use transform instead of scale
+        gem.element.style.transform = `scale(${scale})`
       }
     }
   })
 }
 // interact
 function handleActiveGem(gemId) {
-  console.log("wtf")
   const activeGem = gemsById.value[gemId]
   adjacentGemId = getAdjacentGemId(activeGem)
   if (!adjacentGemId) return
