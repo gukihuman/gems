@@ -2,7 +2,16 @@
   <div class="bg-slate-600 max-w-[500px] h-fit w-full rounded-lg p-1 shadow-xl">
     <div
       ref="gridRef"
+      v-if="pause"
+      class="flex items-center justify-center text-slate-300 aspect-square bg-slate-600 cursor-default text-3xl pb-2"
+    >
+      pause
+    </div>
+    <div
+      v-else
+      ref="gridRef"
       class="relative grid aspect-square bg-slate-600 overflow-hidden"
+      :class="{ 'saturate-50 opacity-50': pause }"
       :style="{
         'grid-template-columns': `repeat(${size}, minmax(0, 1fr))`,
       }"
@@ -72,7 +81,7 @@ const MOUSE_ACCELERATION = 2500
 const MOUSE_DAMPING = 0.3
 const DAMPING = 0.7
 
-const props = defineProps(["size", "minMatch"])
+const props = defineProps(["size", "minMatch", "pause"])
 const emit = defineEmits(["match"])
 const gridRef = ref(null)
 const gemsById = ref({})
@@ -110,7 +119,7 @@ function onVisibilityChange() {
 }
 // core
 function gameLoop(currentTime) {
-  if (!isTabActive) {
+  if (!isTabActive || props.pause) {
     requestAnimationFrame(gameLoop)
     return
   }

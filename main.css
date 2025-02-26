@@ -15,6 +15,10 @@
   --pink-light: #ff91ff;
 }
 
+* {
+  @apply focus:outline-none;
+}
+
 .bg-circles {
   background-image: radial-gradient(
     circle at 50% 50%,

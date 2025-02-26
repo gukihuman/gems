@@ -2,22 +2,28 @@
   <div
     class="flex justify-center items-center h-screen bg-slate-500 bg-circles"
   >
-    <div class="flex flex-col gap-8 w-full">
+    <div class="flex flex-col gap-12 w-full">
       <div class="flex justify-center gap-2 text-slate-300">
         <button
           @click="fileSave('gems.json', getStorage())"
-          class="bg-slate-600 rounded-md w-16 pb-1 hover:bg-slate-700"
+          class="bg-slate-600 rounded-md w-24 pb-1 hover:bg-slate-700"
         >
           save
         </button>
         <button
           @click="onFileLoad"
-          class="bg-slate-600 rounded-md w-16 pb-1 hover:bg-slate-700"
+          class="bg-slate-600 rounded-md w-24 pb-1 hover:bg-slate-700"
         >
           load
         </button>
+        <button
+          @click="pause = !pause"
+          class="bg-slate-600 rounded-md w-24 pb-1 hover:bg-slate-700"
+        >
+          {{ !pause ? "pause" : "continue" }}
+        </button>
       </div>
-      <Game @state-updated="handleStateUpdate" />
+      <Game :pause="pause" @state-updated="handleStateUpdate" />
     </div>
   </div>
 </template>
@@ -30,10 +36,11 @@ import timestamp from "./utils/timestamp"
 const APP_LOCAL_STORAGE_KEY = "gems"
 const DEBOUNCE_DELAY = 300
 
+const pause = ref(false)
+
 const experience = ref(0)
 
 const debouncedLocalStorageSave = debounce(() => {
-  console.log("updated, experience: ", experience.value)
   localStorageSave()
 }, DEBOUNCE_DELAY)
 

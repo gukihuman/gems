@@ -1,7 +1,12 @@
 <template>
   <div class="flex gap-4 w-full justify-center">
     <GameDamageLog :damageLogs="damageLogs" />
-    <GameGrid :size="GRID_SIZE" :min-match="MIN_MATCH" @match="handleMatch" />
+    <GameGrid
+      :size="GRID_SIZE"
+      :min-match="MIN_MATCH"
+      :pause="pause"
+      @match="handleMatch"
+    />
     <div class="w-80"></div>
   </div>
 </template>
@@ -12,6 +17,7 @@ const MIN_MATCH = 3
 const MAX_MULTIPLIER = 100
 const MULTIPLIER = [1, 5, 20, 50, 70, MAX_MULTIPLIER] // 3, 4, 5, 6, 7, 8
 
+const props = defineProps(["pause"])
 const emit = defineEmits(["state-updated"])
 
 const damageLogs = ref([])
