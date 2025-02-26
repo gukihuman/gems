@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --green-dark: #64b506;
+  --green-light: #98df25;
+  --blue-dark: #3180ef;
+  --blue-light: #44baff;
+  --yellow-dark: #ffbf00;
+  --yellow-light: #ffe978;
+  --orange-dark: #f34b25;
+  --orange-light: #ff8b68;
+  --pink-dark: #e355c9;
+  --pink-light: #ff91ff;
+}
+
 .bg-circles {
   background-image: radial-gradient(
     circle at 50% 50%,
@@ -11,33 +24,54 @@
   background-size: 16px 16px;
 }
 
-.green {
-  --dark: #64b506;
-  --light: #98df25;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
+.green-bg {
+  background: radial-gradient(
+    circle at 70% 70%,
+    var(--green-dark),
+    var(--green-light)
+  );
 }
-.blue {
-  --dark: #3180ef;
-  --light: #44baff;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
+.blue-bg {
+  background: radial-gradient(
+    circle at 70% 70%,
+    var(--blue-dark),
+    var(--blue-light)
+  );
 }
-.yellow {
-  --dark: #ffbf00;
-  --light: #ffe978;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
+.yellow-bg {
+  background: radial-gradient(
+    circle at 70% 70%,
+    var(--yellow-dark),
+    var(--yellow-light)
+  );
 }
-.orange {
-  --dark: #f34b25;
-  --light: #ff8b68;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
+.orange-bg {
+  background: radial-gradient(
+    circle at 70% 70%,
+    var(--orange-dark),
+    var(--orange-light)
+  );
 }
-.pink {
-  --dark: #e355c9;
-  --light: #ff91ff;
-  background: radial-gradient(circle at 70% 70%, var(--dark), var(--light));
-  border-color: var(--light);
+.pink-bg {
+  background: radial-gradient(
+    circle at 70% 70%,
+    var(--pink-dark),
+    var(--pink-light)
+  );
+}
+
+.green-border {
+  border-color: var(--green-light);
+}
+.blue-border {
+  border-color: var(--blue-light);
+}
+.yellow-border {
+  border-color: var(--yellow-light);
+}
+.orange-border {
+  border-color: var(--orange-light);
+}
+.pink-border {
+  border-color: var(--pink-light);
 }

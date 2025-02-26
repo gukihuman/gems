@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-slate-600 max-w-[500px] w-full rounded-lg p-1 shadow-xl">
+  <div class="bg-slate-600 max-w-[500px] h-fit w-full rounded-lg p-1 shadow-xl">
     <div
       ref="gridRef"
       class="relative grid aspect-square bg-slate-600 overflow-hidden"
@@ -53,13 +53,13 @@ import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
 const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
 const GEM_CLASSES = {
-  GREEN: "green",
-  BLUE: "blue",
-  YELLOW: "yellow",
-  ORANGE: "orange",
-  PINK: "pink",
+  GREEN: "green-bg green-border",
+  BLUE: "blue-bg blue-border",
+  YELLOW: "yellow-bg yellow-border",
+  ORANGE: "orange-bg orange-border",
+  PINK: "pink-bg pink-border",
 }
-const REMOVE_DELAY = 500
+const REMOVE_DELAY = 350
 const REMOVE_FLUCTUATION = 50
 const REMOVE_SCALE = 1.5
 const CLICK_DELAY = 300
