@@ -1,32 +1,34 @@
 <template>
   <div class="flex gap-4 w-full justify-center">
-    <GameDamageLog :damageLogs="damageLogs" />
+    <GameDamageLog :damageLogs="damageLogs" :archetype="archetype" />
     <GameGrid
-      :size="GRID_SIZE"
-      :min-match="MIN_MATCH"
       :pause="pause"
-      @match="handleMatch"
+      :archetype="archetype"
+      @match="onMatch"
+      @shard-count="onShardCount"
     />
     <div class="w-80"></div>
   </div>
 </template>
 <script setup>
+import { GEM_COLORS, GEM_COLORS_ARRAY } from "~/components/constants"
 const DAMAGE = [2, 3]
-const GRID_SIZE = 8
-const MIN_MATCH = 3
-const MAX_MULTIPLIER = 100
-const MULTIPLIER = [1, 5, 20, 50, 70, MAX_MULTIPLIER] // 3, 4, 5, 6, 7, 8
+// handle any possible match count from 0 to 10 (max)
+const DAMAGE_MULTIPLIER = [0, 1, 1, 1, 5, 50, 500, 2_500, 5_000, 10_000, 20_000]
 
-const props = defineProps(["pause"])
-const emit = defineEmits(["state-updated"])
+const props = defineProps(["pause", "archetype"])
+const emit = defineEmits(["win", "shard-count"])
 
 const damageLogs = ref([])
 const matchQueue = []
 let isProcessingQueue = false
 
-function handleMatch(color, matchCount) {
-  matchQueue.push({ color, count: matchCount })
+function onMatch(color, count) {
+  matchQueue.push({ color, count })
   if (!isProcessingQueue) processMatchQueue()
+}
+function onShardCount() {
+  emit("shard-count")
 }
 function processMatchQueue() {
   if (matchQueue.length === 0) {
@@ -39,20 +41,31 @@ function processMatchQueue() {
     id: Math.random(),
     color: nextMatch.color,
     count: nextMatch.count,
-    multiplier: getMultiplier(nextMatch.count),
+    multiplier: DAMAGE_MULTIPLIER[nextMatch.count],
     ...getDamage(nextMatch.count),
   })
   damageLogs.value.splice(10)
   setTimeout(() => processMatchQueue(), 300)
-  emit("state-updated", { experience: 5 })
-}
-function getMultiplier(count) {
-  return count <= 8 ? MULTIPLIER[count - 3] : MAX_MULTIPLIER
+  // 📜 change to only after win, currently triggers local storage every match
+  emit("win", {
+    experience: 0,
+    two: nextMatch.count === 2 ? 1 : 0,
+    three: nextMatch.count === 3 ? 1 : 0,
+    four: nextMatch.count === 4 ? 1 : 0,
+    five: nextMatch.count === 5 ? 1 : 0,
+    six: nextMatch.count === 6 ? 1 : 0,
+    seven: nextMatch.count === 7 ? 1 : 0,
+    eight: nextMatch.count >= 8 ? 1 : 0,
+    shardCount:
+      nextMatch.color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
+        ? nextMatch.count
+        : 0,
+  })
 }
 function getDamage(count) {
   const randomAddition = Math.random() * (DAMAGE[1] - DAMAGE[0])
   const baseDamage = Math.round(DAMAGE[0] + randomAddition)
-  const fullDamage = Math.round(baseDamage * getMultiplier(count))
+  const fullDamage = Math.round(baseDamage * DAMAGE_MULTIPLIER[count])
   return { baseDamage, fullDamage }
 }
 </script>

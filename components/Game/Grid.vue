@@ -39,7 +39,40 @@
           padding: cellSize * 0.1 + 'px',
         }"
       >
+        <img
+          v-if="
+            archetype === ARCHETYPE.AIM &&
+            gem.color === GEM_COLORS_ARRAY[GEM_COLORS.YELLOW]
+          "
+          :src="arrowhead"
+          class="duration-200 ease-out select-none rotate-[4deg]"
+          :class="[
+            {
+              'group-hover:brightness-150 group-hover:scale-[1.45]':
+                !activeGemId && !gem.cascading && !gem.removing,
+              'scale-[1.0] brightness-150': id === activeGemId,
+              'scale-[1.05] saturate-[0.4]': gem.cascading,
+              'scale-[1.15]': !gem.cascading && id !== activeGemId,
+            },
+          ]"
+        />
+        <img
+          v-else-if="
+            archetype === ARCHETYPE.CRYSTAL &&
+            gem.color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
+          "
+          :src="shard"
+          class="duration-200 ease-out select-none rotate-[0deg]"
+          :class="[
+            {
+              'scale-[1.0] brightness-150': id === activeGemId,
+              'scale-[1.05] saturate-[0.4]': gem.cascading,
+              'scale-[1.15]': !gem.cascading && id !== activeGemId,
+            },
+          ]"
+        />
         <div
+          v-else
           class="border-4 rounded-full size-full duration-200 ease-out"
           :class="[
             GEM_CLASSES[gem.color],
@@ -53,6 +86,7 @@
         ></div>
       </div>
     </div>
+    <div class="text-slate-300 text-center">{{ formattedTime }}</div>
   </div>
 </template>
 <script setup>
@@ -60,7 +94,15 @@
 import anime from "animejs"
 import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
-const GEMS_COLORS = ["GREEN", "BLUE", "YELLOW", "ORANGE", "PINK"]
+import arrowhead from "~/assets/arrowhead.webp"
+import shard from "~/assets/shard.webp"
+import {
+  MIN_MATCH,
+  MAX_MATCH_COUNT,
+  ARCHETYPE,
+  GEM_COLORS,
+  GEM_COLORS_ARRAY,
+} from "~/components/constants"
 const GEM_CLASSES = {
   GREEN: "green-bg green-border",
   BLUE: "blue-bg blue-border",
@@ -68,12 +110,14 @@ const GEM_CLASSES = {
   ORANGE: "orange-bg orange-border",
   PINK: "pink-bg pink-border",
 }
+const GRID_SIZE = 8
+const AIM_GRID_SIZE = 10
 const REMOVE_DELAY = 350
 const REMOVE_FLUCTUATION = 50
 const REMOVE_SCALE = 1.5
 const CLICK_DELAY = 300
 const DELAY_AFTER_RESIZE = 50
-const MAX_DRAG_DISTANCE = 0.7 // cell size ratio
+const MAX_DRAG_DISTANCE = 0.7 // ratio based on cell size
 const MAX_VELOCITY = 400
 const MAX_DELTA_TIME = 0.05 // cap at 1/20th of a second in case of lag
 const ACCELERATION = 700
@@ -81,19 +125,20 @@ const MOUSE_ACCELERATION = 2500
 const MOUSE_DAMPING = 0.3
 const DAMPING = 0.7
 
-const props = defineProps(["size", "minMatch", "pause"])
-const emit = defineEmits(["match"])
+const props = defineProps(["pause", "archetype"])
+const emit = defineEmits(["match", "shard-count"])
+const size = ref(props.archetype === ARCHETYPE.AIM ? AIM_GRID_SIZE : GRID_SIZE)
 const gridRef = ref(null)
 const gemsById = ref({})
 const cellSize = ref(0)
-const grid = Array.from(Array(props.size ** 2), () => ({
+const grid = Array.from(Array(size.value ** 2), () => ({
   gemId: null,
   x: 0,
   y: 0,
 }))
 const activeGemId = ref(null)
 const maxDragDistance = computed(() => cellSize.value * MAX_DRAG_DISTANCE)
-const gridEdge = props.size - 1
+const gridEdge = size.value - 1
 const mouse = { x: 0, y: 0 }
 const debouncedAfterResize = debounce(() => {
   Object.values(gemsById.value).forEach((gem) => (gem.cascading = true))
@@ -118,6 +163,13 @@ function onVisibilityChange() {
   if (isTabActive) lastTime = performance.now()
 }
 // core
+const elapsedTime = ref(0)
+const formattedTime = computed(() => {
+  const totalSeconds = Math.round(elapsedTime.value)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`
+})
 function gameLoop(currentTime) {
   if (!isTabActive || props.pause) {
     requestAnimationFrame(gameLoop)
@@ -126,6 +178,7 @@ function gameLoop(currentTime) {
   let deltaTime = (currentTime - lastTime) / 1000
   deltaTime = Math.min(deltaTime, MAX_DELTA_TIME) // cap lags
   lastTime = currentTime
+  elapsedTime.value = elapsedTime.value + deltaTime
 
   cascadeGems()
   Object.values(gemsById.value).forEach((gem) => move(gem, deltaTime))
@@ -211,10 +264,10 @@ function move(gem, deltaTime) {
 
 function setGridCoordinates() {
   gridRect = gridRef.value.getBoundingClientRect()
-  cellSize.value = gridRect.width / props.size
+  cellSize.value = gridRect.width / size.value
   grid.forEach((cell, i) => {
-    cell.x = cellSize.value * (i % props.size) + cellSize.value / 2
-    cell.y = cellSize.value * Math.floor(i / props.size) + cellSize.value / 2
+    cell.x = cellSize.value * (i % size.value) + cellSize.value / 2
+    cell.y = cellSize.value * Math.floor(i / size.value) + cellSize.value / 2
   })
 }
 function getHomeCoordinates(gridIndex) {
@@ -223,7 +276,7 @@ function getHomeCoordinates(gridIndex) {
 function cascadeGems() {
   for (let col = 0; col <= gridEdge; col++) {
     for (let row = gridEdge; row >= 0; row--) {
-      const gridIndex = row * props.size + col
+      const gridIndex = row * size.value + col
       const gem = gemsById.value[grid[gridIndex].gemId]
       if (gem && !gem.removing) {
         const newGridIndex = findBottomEmptySpot(col, row)
@@ -242,9 +295,9 @@ function cascadeGems() {
   }
 }
 function findBottomEmptySpot(col, startRow) {
-  let targetIndex = startRow * props.size + col
+  let targetIndex = startRow * size.value + col
   for (let row = startRow + 1; row <= gridEdge; row++) {
-    const nextIndex = row * props.size + col
+    const nextIndex = row * size.value + col
     const gem = gemsById.value[grid[nextIndex].gemId]
     if (!gem) targetIndex = nextIndex
   }
@@ -252,26 +305,27 @@ function findBottomEmptySpot(col, startRow) {
 }
 function generateNewGems(col) {
   let topEmptyCount = 0
-  for (let row = 0; row < props.size; row++) {
-    const gridIndex = row * props.size + col
+  for (let row = 0; row < size.value; row++) {
+    const gridIndex = row * size.value + col
     if (!grid[gridIndex].gemId) topEmptyCount++
     else break
   }
   let cascadingCount = 0
-  for (let row = 0; row < props.size; row++) {
-    const gridIndex = row * props.size + col
+  for (let row = 0; row < size.value; row++) {
+    const gridIndex = row * size.value + col
     const gem = gemsById.value[grid[gridIndex].gemId]
     if (gem && gem.cascading) cascadingCount++
   }
   if (topEmptyCount === 0) return
   for (let row = 0; row < topEmptyCount; row++) {
-    const gridIndex = row * props.size + col
+    const gridIndex = row * size.value + col
     const id = newId()
     grid[gridIndex].gemId = id
     const { homeX } = getHomeCoordinates(gridIndex)
     gemsById.value[id] = {
       gridIndex,
-      color: GEMS_COLORS[Math.floor(Math.random() * GEMS_COLORS.length)],
+      color:
+        GEM_COLORS_ARRAY[Math.floor(Math.random() * GEM_COLORS_ARRAY.length)],
       x: homeX,
       y:
         -(cellSize.value * (topEmptyCount + cascadingCount - row)) +
@@ -290,20 +344,28 @@ function generateNewGems(col) {
 // match
 function resolveMatches() {
   const matchedGemIds = new Set()
-  for (let row = 0; row < props.size; row++) {
-    const startIndex = row * props.size
+  for (let row = 0; row < size.value; row++) {
+    const startIndex = row * size.value
     checkLine(matchedGemIds, startIndex, 1)
   }
-  for (let startIndex = 0; startIndex < props.size; startIndex++) {
-    checkLine(matchedGemIds, startIndex, props.size)
+  for (let startIndex = 0; startIndex < size.value; startIndex++) {
+    checkLine(matchedGemIds, startIndex, size.value)
   }
-  matchedGemIds.forEach((gemId) => removeGem(gemId))
+  matchedGemIds.forEach((gemId) => {
+    removeGem(gemId)
+    if (
+      props.archetype === ARCHETYPE.CRYSTAL &&
+      gemsById.value[gemId].color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
+    ) {
+      emit("shard-count")
+    }
+  })
 }
 function checkLine(matchedGemIds, startIndex, step) {
   let singleColorLine = [] // gemIds
   let color = null
   let matchCount = 1
-  for (let i = 0; i < props.size; i++) {
+  for (let i = 0; i < size.value; i++) {
     const gemId = grid[startIndex + i * step].gemId
     const gem = gemsById.value[gemId]
     if (!gem) return
@@ -327,9 +389,22 @@ function checkLine(matchedGemIds, startIndex, step) {
   resolveLine(matchedGemIds, singleColorLine, color, matchCount)
 }
 function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
-  if (matchCount < props.minMatch) return
+  let matchToCheck = MIN_MATCH
+  if (
+    props.archetype === ARCHETYPE.AIM &&
+    color === GEM_COLORS_ARRAY[GEM_COLORS.YELLOW]
+  ) {
+    matchToCheck += 1
+  } else if (
+    props.archetype === ARCHETYPE.CRYSTAL &&
+    color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
+  ) {
+    matchToCheck -= 1
+  }
+
+  if (matchCount < matchToCheck) return
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
-  emit("match", color, matchCount)
+  emit("match", color, Math.min(matchCount, MAX_MATCH_COUNT))
 }
 // previously animation
 function homeGem(gemId) {
@@ -394,18 +469,18 @@ function getAdjacentGemId(gem) {
 }
 function getGridIndexStep(dx, dy) {
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 1 : -1
-  return dy > 0 ? props.size : -props.size
+  return dy > 0 ? size.value : -size.value
 }
 function checkBorder(gridIndex, adjacentIndex) {
-  const currentCol = gridIndex % props.size
-  const adjacentCol = adjacentIndex % props.size
+  const currentCol = gridIndex % size.value
+  const adjacentCol = adjacentIndex % size.value
   if (currentCol === 0 && adjacentCol === gridEdge) return
   if (adjacentCol === 0 && currentCol === gridEdge) return
   return true
 }
 function checkPossibleSwap(gridIndex, color, excludedGemId) {
-  const row = Math.floor(gridIndex / props.size)
-  const col = gridIndex % props.size
+  const row = Math.floor(gridIndex / size.value)
+  const col = gridIndex % size.value
   const left = [0, -1]
   const right = [0, 1]
   const up = [-1, 0]
@@ -418,9 +493,14 @@ function checkPossibleSwap(gridIndex, color, excludedGemId) {
     1 +
     countConsecutiveMatches(row, col, down, color, excludedGemId) +
     countConsecutiveMatches(row, col, up, color, excludedGemId)
-  return (
-    horizontalMatches >= props.minMatch || verticalMatches >= props.minMatch
-  )
+  let matchToCheck = MIN_MATCH
+  if (
+    props.archetype === ARCHETYPE.AIM &&
+    color === GEM_COLORS_ARRAY[GEM_COLORS.YELLOW]
+  ) {
+    matchToCheck += 1
+  }
+  return horizontalMatches >= matchToCheck || verticalMatches >= matchToCheck
 }
 function countConsecutiveMatches(row, col, direction, color, excludedGemId) {
   let count = 0
@@ -443,10 +523,10 @@ function countConsecutiveMatches(row, col, direction, color, excludedGemId) {
   return count
 }
 function getGemIdAt(row, col) {
-  const isValidRow = row >= 0 && row < props.size
-  const isValidCol = col >= 0 && col < props.size
+  const isValidRow = row >= 0 && row < size.value
+  const isValidCol = col >= 0 && col < size.value
   if (!isValidRow || !isValidCol) return
-  return grid[row * props.size + col].gemId
+  return grid[row * size.value + col].gemId
 }
 function swapGems(gemId1, gemId2) {
   const gem1 = gemsById.value[gemId1]
@@ -481,6 +561,12 @@ function onResize() {
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
   if (gem.cascading || gem.removing) return
+  if (
+    props.archetype === ARCHETYPE.CRYSTAL &&
+    gem.color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
+  ) {
+    return
+  }
   if (!activeGemId.value) {
     activeGemId.value = gemId
     handleActiveGem(gemId)
