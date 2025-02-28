@@ -2,19 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --green-dark: #64b506;
-  --green-light: #98df25;
-  --blue-dark: #3180ef;
-  --blue-light: #44baff;
-  --yellow-dark: #e2a619;
-  --yellow-light: #ffd77f;
-  --orange-dark: #ed4b3c;
-  --orange-light: #ff7e70;
-  --pink-dark: #e35df8;
-  --pink-light: #e298ff;
-}
-
 * {
   @apply focus:outline-none;
 }
@@ -26,56 +13,4 @@
     transparent 1px
   );
   background-size: 16px 16px;
-}
-
-.green-bg {
-  background: radial-gradient(
-    circle at 70% 70%,
-    var(--green-dark),
-    var(--green-light)
-  );
-}
-.blue-bg {
-  background: radial-gradient(
-    circle at 70% 70%,
-    var(--blue-dark),
-    var(--blue-light)
-  );
-}
-.yellow-bg {
-  background: radial-gradient(
-    circle at 70% 70%,
-    var(--yellow-dark),
-    var(--yellow-light)
-  );
-}
-.orange-bg {
-  background: radial-gradient(
-    circle at 70% 70%,
-    var(--orange-dark),
-    var(--orange-light)
-  );
-}
-.pink-bg {
-  background: radial-gradient(
-    circle at 70% 70%,
-    var(--pink-dark),
-    var(--pink-light)
-  );
-}
-
-.green-border {
-  border-color: var(--green-light);
-}
-.blue-border {
-  border-color: var(--blue-light);
-}
-.yellow-border {
-  border-color: var(--yellow-light);
-}
-.orange-border {
-  border-color: var(--orange-light);
-}
-.pink-border {
-  border-color: var(--pink-light);
 }

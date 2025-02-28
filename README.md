@@ -26,7 +26,7 @@ npm run build
 {
   "0185318306514327": {
     "gridIndex": 0,
-    "color": "RED",
+    "color": 0,
     "x": 0,
     "y": 0,
     "velocityX": 0,
@@ -37,7 +37,7 @@ npm run build
   },
   "7521372547236283": {
     "gridIndex": 1,
-    "color": "GREEN",
+    "color": 1,
     "x": 0,
     "y": 0,
     "velocityX": 0,

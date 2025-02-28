@@ -1,9 +1,9 @@
 <template>
   <div class="flex gap-4 w-full justify-center">
-    <GameDamageLog :damageLogs="damageLogs" :archetype="archetype" />
+    <GameDamageLog :damageLogs="damageLogs" :arc="arc" />
     <GameGrid
       :pause="pause"
-      :archetype="archetype"
+      :arc="arc"
       @match="onMatch"
       @shard-count="onShardCount"
     />
@@ -11,12 +11,12 @@
   </div>
 </template>
 <script setup>
-import { GEM_COLORS, GEM_COLORS_ARRAY } from "~/components/constants"
+import { GEMS } from "~/components/constants"
 const DAMAGE = [2, 3]
 // handle any possible match count from 0 to 10 (max)
 const DAMAGE_MULTIPLIER = [0, 1, 1, 1, 5, 50, 500, 2_500, 5_000, 10_000, 20_000]
 
-const props = defineProps(["pause", "archetype"])
+const props = defineProps(["pause", "arc"])
 const emit = defineEmits(["win", "shard-count"])
 
 const damageLogs = ref([])
@@ -56,10 +56,7 @@ function processMatchQueue() {
     six: nextMatch.count === 6 ? 1 : 0,
     seven: nextMatch.count === 7 ? 1 : 0,
     eight: nextMatch.count >= 8 ? 1 : 0,
-    shardCount:
-      nextMatch.color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
-        ? nextMatch.count
-        : 0,
+    shardCount: nextMatch.color === GEMS.BLUE ? nextMatch.count : 0,
   })
 }
 function getDamage(count) {

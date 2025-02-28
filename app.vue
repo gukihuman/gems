@@ -1,29 +1,27 @@
 <template>
-  <div
-    class="flex justify-center items-center h-screen bg-slate-500 bg-circles"
-  >
+  <div class="flex justify-center items-center h-screen bg-gray-500 bg-circles">
     <div class="flex flex-col gap-8 w-full pb-8">
-      <div class="flex justify-center gap-2 text-slate-300">
+      <div class="flex justify-center gap-2 text-gray-300">
         <button
           @click="fileSave('gems.json', getStorage())"
-          class="bg-slate-600 rounded-md w-24 pb-1 hover:bg-slate-700"
+          class="bg-gray-600 rounded-md w-24 pb-1 hover:bg-gray-700"
         >
           save
         </button>
         <button
           @click="onFileLoad"
-          class="bg-slate-600 rounded-md w-24 pb-1 hover:bg-slate-700"
+          class="bg-gray-600 rounded-md w-24 pb-1 hover:bg-gray-700"
         >
           load
         </button>
         <button
           @click="pause = !pause"
-          class="bg-slate-600 rounded-md w-24 pb-1 hover:bg-slate-700"
+          class="bg-gray-600 rounded-md w-24 pb-1 hover:bg-gray-700"
         >
           {{ !pause ? "pause" : "continue" }}
         </button>
         <div
-          class="bg-slate-600 rounded-md w-[600px] px-2 pb-1 hover:bg-slate-700"
+          class="bg-gray-600 rounded-md w-[600px] px-2 pb-1 hover:bg-gray-700"
         >
           two: {{ two }} three: {{ three }} four: {{ four }} five:
           {{ five }} six: {{ six }} seven: {{ seven }} eight+:
@@ -33,7 +31,7 @@
       <Game
         v-if="!pending"
         :pause="pause"
-        :archetype="archetype"
+        :arc="arc"
         @win="onWin"
         @shard-count="onShardCount"
       />
@@ -45,7 +43,7 @@ import fileSave from "~/utils/fileSave"
 import fileLoad from "~/utils/fileLoad"
 import debounce from "~/utils/debounce"
 import timestamp from "~/utils/timestamp"
-import { ARCHETYPE } from "~/components/constants"
+import { ARC } from "~/components/constants"
 
 const APP_LOCAL_STORAGE_KEY = "gems"
 const DEBOUNCE_DELAY = 300
@@ -54,7 +52,7 @@ const pause = ref(false)
 const pending = ref(true) // run game only after local storage is loaded
 
 const experience = ref(0)
-const archetype = ref(ARCHETYPE.CRYSTAL)
+const arc = ref(null)
 const two = ref(0)
 const three = ref(0)
 const four = ref(0)
@@ -89,7 +87,7 @@ function onShardCount() {
 }
 function injectStorage(storage) {
   experience.value = storage.experience
-  archetype.value = storage.archetype
+  // arc.value = storage.arc
   two.value = storage.two || two.value
   three.value = storage.three || three.value
   four.value = storage.four || four.value
@@ -102,7 +100,7 @@ function injectStorage(storage) {
 function getStorage() {
   return {
     experience: experience.value,
-    archetype: archetype.value,
+    arc: arc.value,
     two: two.value,
     three: three.value,
     four: four.value,

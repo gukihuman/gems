@@ -1,16 +1,16 @@
 <template>
-  <div class="bg-slate-600 max-w-[500px] h-fit w-full rounded-lg p-1 shadow-xl">
+  <div class="bg-gray-600 max-w-[500px] h-fit w-full rounded-lg p-1 shadow-xl">
     <div
       ref="gridRef"
       v-if="pause"
-      class="flex items-center justify-center text-slate-300 aspect-square bg-slate-600 cursor-default text-3xl pb-2"
+      class="flex items-center justify-center text-gray-300 aspect-square bg-gray-600 cursor-default text-3xl pb-2"
     >
       pause
     </div>
     <div
       v-else
       ref="gridRef"
-      class="relative grid aspect-square bg-slate-600 overflow-hidden"
+      class="relative grid aspect-square bg-gray-600 overflow-hidden"
       :class="{ 'saturate-50 opacity-50': pause }"
       :style="{
         'grid-template-columns': `repeat(${size}, minmax(0, 1fr))`,
@@ -19,7 +19,7 @@
       <div
         v-for="i in size ** 2"
         :key="i"
-        class="border-[3px] border-slate-600 rounded-md bg-slate-700"
+        class="border-[3px] border-gray-600 rounded-md bg-gray-700"
         draggable="false"
         @dragstart.prevent
       ></div>
@@ -39,54 +39,29 @@
           padding: cellSize * 0.1 + 'px',
         }"
       >
-        <img
-          v-if="
-            archetype === ARCHETYPE.AIM &&
-            gem.color === GEM_COLORS_ARRAY[GEM_COLORS.YELLOW]
-          "
-          :src="arrowhead"
-          class="duration-200 ease-out select-none rotate-[4deg]"
-          :class="[
-            {
-              'group-hover:brightness-150 group-hover:scale-[1.45]':
-                !activeGemId && !gem.cascading && !gem.removing,
-              'scale-[1.0] brightness-150': id === activeGemId,
-              'scale-[1.05] saturate-[0.4]': gem.cascading,
-              'scale-[1.15]': !gem.cascading && id !== activeGemId,
-            },
-          ]"
-        />
-        <img
-          v-else-if="
-            archetype === ARCHETYPE.CRYSTAL &&
-            gem.color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
-          "
-          :src="shard"
-          class="duration-200 ease-out select-none rotate-[0deg]"
-          :class="[
-            {
-              'scale-[1.0] brightness-150': id === activeGemId,
-              'scale-[1.05] saturate-[0.4]': gem.cascading,
-              'scale-[1.15]': !gem.cascading && id !== activeGemId,
-            },
-          ]"
-        />
-        <div
-          v-else
-          class="border-4 rounded-full size-full duration-200 ease-out"
-          :class="[
-            GEM_CLASSES[gem.color],
-            {
-              'group-hover:brightness-150 group-hover:scale-[1.2]':
-                !activeGemId && !gem.cascading && !gem.removing,
-              'scale-[0.85] brightness-150': id === activeGemId,
-              'scale-[0.95] saturate-[0.4]': gem.cascading,
-            },
-          ]"
-        ></div>
+        <div v-for="(img, i) in IMG_MAP" :key="`gem-${img.color}-${id}-${i}`">
+          <img
+            v-if="img.color === gem.color"
+            :src="img.src"
+            class="duration-200 ease-out-in select-none"
+            :class="[
+              {
+                'group-hover:brightness-150 group-hover:scale-[1.1] group-hover:rotate-[7deg]':
+                  !activeGemId &&
+                  !gem.cascading &&
+                  !gem.removing &&
+                  (arc !== ARC.CRYSTAL || gem.color !== GEMS.BLUE),
+                'scale-[0.8] brightness-150': id === activeGemId,
+                'scale-[0.9] saturate-[0.4]': gem.cascading,
+                'scale-[0.95]': !gem.cascading && id !== activeGemId,
+              },
+            ]"
+            :style="{ rotate: gem.rotation + 'deg' }"
+          />
+        </div>
       </div>
     </div>
-    <div class="text-slate-300 text-center">{{ formattedTime }}</div>
+    <div class="text-gray-300 text-center">{{ formattedTime }}</div>
   </div>
 </template>
 <script setup>
@@ -94,40 +69,44 @@
 import anime from "animejs"
 import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
+
+import yellow from "~/assets/yellow.webp"
+import blue from "~/assets/blue.webp"
+import green from "~/assets/green.webp"
+import red from "~/assets/red.webp"
+import purple from "~/assets/purple.webp"
 import arrowhead from "~/assets/arrowhead.webp"
 import shard from "~/assets/shard.webp"
-import {
-  MIN_MATCH,
-  MAX_MATCH_COUNT,
-  ARCHETYPE,
-  GEM_COLORS,
-  GEM_COLORS_ARRAY,
-} from "~/components/constants"
-const GEM_CLASSES = {
-  GREEN: "green-bg green-border",
-  BLUE: "blue-bg blue-border",
-  YELLOW: "yellow-bg yellow-border",
-  ORANGE: "orange-bg orange-border",
-  PINK: "pink-bg pink-border",
-}
+import toxin from "~/assets/toxin.webp"
+import bomb from "~/assets/bomb.webp"
+import dice from "~/assets/dice.webp"
+
+import { MIN_MATCH, MAX_MATCH_COUNT, ARC, GEMS } from "~/components/constants"
 const GRID_SIZE = 8
 const AIM_GRID_SIZE = 10
 const REMOVE_DELAY = 350
-const REMOVE_FLUCTUATION = 50
-const REMOVE_SCALE = 1.5
+const REMOVE_BLUR = 1
+const REMOVE_FLUCTUATION = 120
+const REMOVE_ROTATE = 20
+const REMOVE_SCALE = 1.2
+const IDLE_ROTATE_CHANCE = 1 / 60 / 10 // 10 sec average
+const IDLE_ROTATE_MIN = 5
+const IDLE_ROTATE_MAX = 15
+const ROTATE_MAX = 20
+const IDLE_ROTATE_DURATION = 10_000
 const CLICK_DELAY = 300
 const DELAY_AFTER_RESIZE = 50
 const MAX_DRAG_DISTANCE = 0.7 // ratio based on cell size
 const MAX_VELOCITY = 400
 const MAX_DELTA_TIME = 0.05 // cap at 1/20th of a second in case of lag
 const ACCELERATION = 700
-const MOUSE_ACCELERATION = 2500
+const MOUSE_ACCELERATION = 2000
 const MOUSE_DAMPING = 0.3
 const DAMPING = 0.7
 
-const props = defineProps(["pause", "archetype"])
+const props = defineProps(["pause", "arc"])
 const emit = defineEmits(["match", "shard-count"])
-const size = ref(props.archetype === ARCHETYPE.AIM ? AIM_GRID_SIZE : GRID_SIZE)
+const size = ref(props.arc === ARC.AIM ? AIM_GRID_SIZE : GRID_SIZE)
 const gridRef = ref(null)
 const gemsById = ref({})
 const cellSize = ref(0)
@@ -148,6 +127,13 @@ let activationTime = null
 let gridRect = null
 let lastTime = performance.now()
 let isTabActive = true
+const IMG_MAP = [
+  { color: GEMS.YELLOW, src: props.arc === ARC.AIM ? arrowhead : yellow },
+  { color: GEMS.BLUE, src: props.arc === ARC.CRYSTAL ? shard : blue },
+  { color: GEMS.GREEN, src: props.arc === ARC.MIASMA ? toxin : green },
+  { color: GEMS.RED, src: props.arc === ARC.BOOM ? bomb : red },
+  { color: GEMS.PURPLE, src: props.arc === ARC.GAMBLER ? dice : purple },
+]
 onMounted(() => {
   setGridCoordinates()
   addEventListener("resize", onResize)
@@ -185,6 +171,8 @@ function gameLoop(currentTime) {
   resolveMatches()
   updateFade()
   if (activeGemId.value) handleActiveGem(activeGemId.value)
+
+  updateGemAnimations()
 
   requestAnimationFrame(gameLoop)
 }
@@ -261,7 +249,6 @@ function move(gem, deltaTime) {
     }
   }
 }
-
 function setGridCoordinates() {
   gridRect = gridRef.value.getBoundingClientRect()
   cellSize.value = gridRect.width / size.value
@@ -324,8 +311,7 @@ function generateNewGems(col) {
     const { homeX } = getHomeCoordinates(gridIndex)
     gemsById.value[id] = {
       gridIndex,
-      color:
-        GEM_COLORS_ARRAY[Math.floor(Math.random() * GEM_COLORS_ARRAY.length)],
+      color: Math.floor(Math.random() * Object.keys(GEMS).length),
       x: homeX,
       y:
         -(cellSize.value * (topEmptyCount + cascadingCount - row)) +
@@ -338,6 +324,8 @@ function generateNewGems(col) {
       cascading: true,
       swapping: false,
       element: null,
+      rotation: 0,
+      isAnimatingRotation: false, // Add this property
     }
   }
 }
@@ -354,8 +342,8 @@ function resolveMatches() {
   matchedGemIds.forEach((gemId) => {
     removeGem(gemId)
     if (
-      props.archetype === ARCHETYPE.CRYSTAL &&
-      gemsById.value[gemId].color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
+      props.arc === ARC.CRYSTAL &&
+      gemsById.value[gemId].color === GEMS.BLUE
     ) {
       emit("shard-count")
     }
@@ -390,15 +378,9 @@ function checkLine(matchedGemIds, startIndex, step) {
 }
 function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
   let matchToCheck = MIN_MATCH
-  if (
-    props.archetype === ARCHETYPE.AIM &&
-    color === GEM_COLORS_ARRAY[GEM_COLORS.YELLOW]
-  ) {
+  if (props.arc === ARC.AIM && color === GEMS.YELLOW) {
     matchToCheck += 1
-  } else if (
-    props.archetype === ARCHETYPE.CRYSTAL &&
-    color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
-  ) {
+  } else if (props.arc === ARC.CRYSTAL && color === GEMS.BLUE) {
     matchToCheck -= 1
   }
 
@@ -406,7 +388,31 @@ function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
   singleColorLine.forEach((gemId) => matchedGemIds.add(gemId))
   emit("match", color, Math.min(matchCount, MAX_MATCH_COUNT))
 }
-// previously animation
+// gem manipulation and animation
+function updateGemAnimations() {
+  Object.values(gemsById.value).forEach((gem) => {
+    if (gem.removing || gem.cascading || gem.swapping) return // Skip if busy
+    if (!gem.isAnimatingRotation && Math.random() < IDLE_ROTATE_CHANCE) {
+      gem.isAnimatingRotation = true
+      let direction = Math.random() < 0.5 ? 1 : -1
+      if (gem.rotation > ROTATE_MAX) direction = -1
+      if (gem.rotation < -ROTATE_MAX) direction = 1
+      const targetRotation =
+        gem.rotation +
+        direction *
+          (IDLE_ROTATE_MIN + Math.random() * IDLE_ROTATE_MAX - IDLE_ROTATE_MIN)
+      anime({
+        targets: gem,
+        rotation: targetRotation,
+        duration: IDLE_ROTATE_DURATION,
+        easing: "easeInOutExpo", // Smooth start and stop
+        complete: () => {
+          gem.isAnimatingRotation = false // Reset flag when done
+        },
+      })
+    }
+  })
+}
 function homeGem(gemId) {
   activeGemId.value = null
   adjacentGemId = null
@@ -417,6 +423,7 @@ function removeGem(gemId) {
   const gem = gemsById.value[gemId]
   gem.removing = true
   gem.removingAnimTime = performance.now() + Math.random() * REMOVE_FLUCTUATION
+  gem.targetRotation = (Math.random() < 0.5 ? -1 : 1) * REMOVE_ROTATE
   setTimeout(() => {
     grid[gem.gridIndex].gemId = null
     delete gemsById.value[gemId]
@@ -432,10 +439,14 @@ function updateFade() {
       gem.fadeProgress = Math.max(1 - elapsed / REMOVE_DELAY, 0)
       const scale = 1 + (REMOVE_SCALE - 1) * (1 - gem.fadeProgress)
       const brightness = 1.5 - 1 * (1 - gem.fadeProgress)
+      const rotation = gem.targetRotation * (1 - gem.fadeProgress)
+      const blur = (1 - gem.fadeProgress) * REMOVE_BLUR
       if (gem.element) {
         gem.element.style.opacity = gem.fadeProgress
-        gem.element.style.transform = `scale(${scale})`
-        gem.element.style.filter = `brightness(${brightness})`
+        gem.element.style.transform = `rotate(${rotation}deg) scale(${scale})`
+        gem.element.style.filter = `brightness(${brightness}) saturate(${
+          gem.fadeProgress
+        }) blur(${blur ** 0.8}px)`
       }
     }
   })
@@ -494,11 +505,11 @@ function checkPossibleSwap(gridIndex, color, excludedGemId) {
     countConsecutiveMatches(row, col, down, color, excludedGemId) +
     countConsecutiveMatches(row, col, up, color, excludedGemId)
   let matchToCheck = MIN_MATCH
-  if (
-    props.archetype === ARCHETYPE.AIM &&
-    color === GEM_COLORS_ARRAY[GEM_COLORS.YELLOW]
-  ) {
+  if (props.arc === ARC.AIM && color === GEMS.YELLOW) {
     matchToCheck += 1
+  }
+  if (props.arc === ARC.CRYSTAL && color === GEMS.BLUE) {
+    return
   }
   return horizontalMatches >= matchToCheck || verticalMatches >= matchToCheck
 }
@@ -561,10 +572,7 @@ function onResize() {
 function onMouseDown(gemId) {
   const gem = gemsById.value[gemId]
   if (gem.cascading || gem.removing) return
-  if (
-    props.archetype === ARCHETYPE.CRYSTAL &&
-    gem.color === GEM_COLORS_ARRAY[GEM_COLORS.BLUE]
-  ) {
+  if (props.arc === ARC.CRYSTAL && gem.color === GEMS.BLUE) {
     return
   }
   if (!activeGemId.value) {
@@ -572,7 +580,6 @@ function onMouseDown(gemId) {
     handleActiveGem(gemId)
     activationTime = Date.now()
     gem.element.style.zIndex = "10"
-    anime.remove(gemsById.value[activeGemId.value])
   } else {
     homeGem(activeGemId.value)
   }
