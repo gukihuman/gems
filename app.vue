@@ -1,5 +1,5 @@
 <template>
-  <div class="flex justify-center items-center h-screen bg-gray-500 bg-circles">
+  <div class="flex justify-center pt-6 h-screen bg-gray-500 bg-circles">
     <div class="flex flex-col gap-8 w-full pb-8">
       <div class="flex justify-center gap-2 text-gray-300">
         <button
@@ -43,7 +43,6 @@ import fileSave from "~/utils/fileSave"
 import fileLoad from "~/utils/fileLoad"
 import debounce from "~/utils/debounce"
 import timestamp from "~/utils/timestamp"
-import { ARC } from "~/components/constants"
 
 const APP_LOCAL_STORAGE_KEY = "gems"
 const DEBOUNCE_DELAY = 300

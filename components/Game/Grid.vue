@@ -43,10 +43,10 @@
           <img
             v-if="img.color === gem.color"
             :src="img.src"
-            class="duration-200 ease-out-in select-none"
+            class="ease-out-in select-none"
             :class="[
               {
-                'group-hover:brightness-150 group-hover:scale-[1.1] group-hover:rotate-[7deg]':
+                'group-hover:brightness-150 group-hover:scale-[1.15] group-hover:rotate-[2deg]':
                   !activeGemId &&
                   !gem.cascading &&
                   !gem.removing &&
@@ -54,9 +54,13 @@
                 'scale-[0.8] brightness-150': id === activeGemId,
                 'scale-[0.9] saturate-[0.4]': gem.cascading,
                 'scale-[0.95]': !gem.cascading && id !== activeGemId,
+                'scale-[1.1] opacity-0 rotate-[10deg]': gem.removing,
               },
             ]"
-            :style="{ rotate: gem.rotation + 'deg' }"
+            :style="{
+              rotate: gem.rotation + 'deg',
+              'transition-duration': `${gem.removing ? REMOVE_DELAY : 200}ms`,
+            }"
           />
         </div>
       </div>
@@ -85,15 +89,8 @@ import { MIN_MATCH, MAX_MATCH_COUNT, ARC, GEMS } from "~/components/constants"
 const GRID_SIZE = 8
 const AIM_GRID_SIZE = 10
 const REMOVE_DELAY = 350
-const REMOVE_BLUR = 1
 const REMOVE_FLUCTUATION = 120
 const REMOVE_ROTATE = 20
-const REMOVE_SCALE = 1.2
-const IDLE_ROTATE_CHANCE = 1 / 60 / 10 // 10 sec average
-const IDLE_ROTATE_MIN = 5
-const IDLE_ROTATE_MAX = 15
-const ROTATE_MAX = 20
-const IDLE_ROTATE_DURATION = 10_000
 const CLICK_DELAY = 300
 const DELAY_AFTER_RESIZE = 50
 const MAX_DRAG_DISTANCE = 0.7 // ratio based on cell size
@@ -169,10 +166,8 @@ function gameLoop(currentTime) {
   cascadeGems()
   Object.values(gemsById.value).forEach((gem) => move(gem, deltaTime))
   resolveMatches()
-  updateFade()
+  // updateFade()
   if (activeGemId.value) handleActiveGem(activeGemId.value)
-
-  updateGemAnimations()
 
   requestAnimationFrame(gameLoop)
 }
@@ -325,7 +320,6 @@ function generateNewGems(col) {
       swapping: false,
       element: null,
       rotation: 0,
-      isAnimatingRotation: false, // Add this property
     }
   }
 }
@@ -389,30 +383,7 @@ function resolveLine(matchedGemIds, singleColorLine, color, matchCount) {
   emit("match", color, Math.min(matchCount, MAX_MATCH_COUNT))
 }
 // gem manipulation and animation
-function updateGemAnimations() {
-  Object.values(gemsById.value).forEach((gem) => {
-    if (gem.removing || gem.cascading || gem.swapping) return // Skip if busy
-    if (!gem.isAnimatingRotation && Math.random() < IDLE_ROTATE_CHANCE) {
-      gem.isAnimatingRotation = true
-      let direction = Math.random() < 0.5 ? 1 : -1
-      if (gem.rotation > ROTATE_MAX) direction = -1
-      if (gem.rotation < -ROTATE_MAX) direction = 1
-      const targetRotation =
-        gem.rotation +
-        direction *
-          (IDLE_ROTATE_MIN + Math.random() * IDLE_ROTATE_MAX - IDLE_ROTATE_MIN)
-      anime({
-        targets: gem,
-        rotation: targetRotation,
-        duration: IDLE_ROTATE_DURATION,
-        easing: "easeInOutExpo", // Smooth start and stop
-        complete: () => {
-          gem.isAnimatingRotation = false // Reset flag when done
-        },
-      })
-    }
-  })
-}
+
 function homeGem(gemId) {
   activeGemId.value = null
   adjacentGemId = null
@@ -428,28 +399,6 @@ function removeGem(gemId) {
     grid[gem.gridIndex].gemId = null
     delete gemsById.value[gemId]
   }, REMOVE_DELAY)
-}
-function updateFade() {
-  Object.values(gemsById.value).forEach((gem) => {
-    if (gem.removing) {
-      const now = performance.now()
-      if (now < gem.removingAnimTime) return
-
-      const elapsed = performance.now() - gem.removingAnimTime
-      gem.fadeProgress = Math.max(1 - elapsed / REMOVE_DELAY, 0)
-      const scale = 1 + (REMOVE_SCALE - 1) * (1 - gem.fadeProgress)
-      const brightness = 1.5 - 1 * (1 - gem.fadeProgress)
-      const rotation = gem.targetRotation * (1 - gem.fadeProgress)
-      const blur = (1 - gem.fadeProgress) * REMOVE_BLUR
-      if (gem.element) {
-        gem.element.style.opacity = gem.fadeProgress
-        gem.element.style.transform = `rotate(${rotation}deg) scale(${scale})`
-        gem.element.style.filter = `brightness(${brightness}) saturate(${
-          gem.fadeProgress
-        }) blur(${blur ** 0.8}px)`
-      }
-    }
-  })
 }
 // interact
 function handleActiveGem(gemId) {
