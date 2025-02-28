@@ -1,13 +1,13 @@
 <template>
   <div class="flex gap-4 w-full justify-center">
-    <GameDamageLog :damageLogs="damageLogs" :arc="arc" />
+    <!-- <GameDamageLog :damageLogs="damageLogs" :arc="arc" /> -->
     <GameGrid
       :pause="pause"
       :arc="arc"
       @match="onMatch"
       @shard-count="onShardCount"
     />
-    <div class="w-80"></div>
+    <!-- <div class="w-80"></div> -->
   </div>
 </template>
 <script setup>

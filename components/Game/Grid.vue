@@ -1,32 +1,31 @@
 <template>
-  <div class="bg-gray-600 max-w-[500px] h-fit w-full rounded-lg p-1 shadow-xl">
+  <div class="max-w-[500px] h-fit w-full p-1">
     <div
       ref="gridRef"
       v-if="pause"
-      class="flex items-center justify-center text-gray-300 aspect-square bg-gray-600 cursor-default text-3xl pb-2"
+      class="flex items-center justify-center text-gray-300 aspect-square cursor-default text-3xl pb-2"
     >
       pause
     </div>
     <div
       v-else
       ref="gridRef"
-      class="relative grid aspect-square bg-gray-600 overflow-hidden"
+      class="relative grid aspect-square duration-200"
       :class="{ 'saturate-50 opacity-50': pause }"
-      :style="{
-        'grid-template-columns': `repeat(${size}, minmax(0, 1fr))`,
-      }"
+      :style="{ 'grid-template-columns': `repeat(${size}, minmax(0, 1fr))` }"
     >
-      <div
+      <img :src="gridImg" class="rounded-2xl blur-md absolute opacity-50" />
+      <img
         v-for="i in size ** 2"
         :key="i"
-        class="border-[3px] border-gray-600 rounded-md bg-gray-700"
+        :src="cell"
         draggable="false"
         @dragstart.prevent
-      ></div>
+      />
       <div
         v-for="(gem, id) in gemsById"
         :key="id"
-        class="absolute group"
+        class="absolute group w-full"
         :ref="(element) => (gem.element = element)"
         @mousedown="onMouseDown(id)"
         draggable="false"
@@ -36,7 +35,6 @@
           top: gem.y - cellSize / 2 + 'px',
           width: cellSize + 'px',
           height: cellSize + 'px',
-          padding: cellSize * 0.1 + 'px',
         }"
       >
         <div v-for="(img, i) in IMG_MAP" :key="`gem-${img.color}-${id}-${i}`">
@@ -46,6 +44,7 @@
             class="ease-out-in select-none"
             :class="[
               {
+                'scale-1': !gem.cascading && id !== activeGemId,
                 'group-hover:brightness-150 group-hover:scale-[1.15] group-hover:rotate-[2deg]':
                   !activeGemId &&
                   !gem.cascading &&
@@ -53,8 +52,7 @@
                   (arc !== ARC.CRYSTAL || gem.color !== GEMS.BLUE),
                 'scale-[0.8] brightness-150': id === activeGemId,
                 'scale-[0.9] saturate-[0.4]': gem.cascading,
-                'scale-[0.95]': !gem.cascading && id !== activeGemId,
-                'scale-[1.1] opacity-0 rotate-[10deg]': gem.removing,
+                'scale-[1.2] opacity-0 rotate-[10deg]': gem.removing,
               },
             ]"
             :style="{
@@ -65,25 +63,26 @@
         </div>
       </div>
     </div>
-    <div class="text-gray-300 text-center">{{ formattedTime }}</div>
+    <div class="pt-10 text-gray-400 text-center">{{ formattedTime }}</div>
   </div>
 </template>
 <script setup>
 /** x and y are always pixel coordinates within grid, grid itself uses row / col as coordinates and flat indices */
-import anime from "animejs"
 import newId from "~/utils/newId"
 import debounce from "~/utils/debounce"
 
-import yellow from "~/assets/yellow.webp"
-import blue from "~/assets/blue.webp"
-import green from "~/assets/green.webp"
-import red from "~/assets/red.webp"
-import purple from "~/assets/purple.webp"
-import arrowhead from "~/assets/arrowhead.webp"
-import shard from "~/assets/shard.webp"
-import toxin from "~/assets/toxin.webp"
-import bomb from "~/assets/bomb.webp"
-import dice from "~/assets/dice.webp"
+import gridImg from "~/assets/grid_warm.png"
+import cell from "~/assets/cell.png"
+import yellow from "~/assets/yellow.png"
+import blue from "~/assets/blue.png"
+import green from "~/assets/green.png"
+import red from "~/assets/red.png"
+import purple from "~/assets/purple.png"
+import arrowhead from "~/assets/arrowhead.png"
+import shard from "~/assets/shard.png"
+import poison from "~/assets/poison.png"
+import bomb from "~/assets/bomb.png"
+import dice from "~/assets/dice.png"
 
 import { MIN_MATCH, MAX_MATCH_COUNT, ARC, GEMS } from "~/components/constants"
 const GRID_SIZE = 8
@@ -127,7 +126,7 @@ let isTabActive = true
 const IMG_MAP = [
   { color: GEMS.YELLOW, src: props.arc === ARC.AIM ? arrowhead : yellow },
   { color: GEMS.BLUE, src: props.arc === ARC.CRYSTAL ? shard : blue },
-  { color: GEMS.GREEN, src: props.arc === ARC.MIASMA ? toxin : green },
+  { color: GEMS.GREEN, src: props.arc === ARC.MIASMA ? poison : green },
   { color: GEMS.RED, src: props.arc === ARC.BOOM ? bomb : red },
   { color: GEMS.PURPLE, src: props.arc === ARC.GAMBLER ? dice : purple },
 ]

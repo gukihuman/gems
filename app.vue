@@ -1,31 +1,39 @@
 <template>
-  <div class="flex justify-center pt-6 h-screen bg-gray-500 bg-circles">
+  <div
+    class="flex justify-center h-screen bg-circles"
+    style="background-color: #31332d"
+  >
     <div class="flex flex-col gap-8 w-full pb-8">
-      <div class="flex justify-center gap-2 text-gray-300">
-        <button
-          @click="fileSave('gems.json', getStorage())"
-          class="bg-gray-600 rounded-md w-24 pb-1 hover:bg-gray-700"
-        >
-          save
-        </button>
-        <button
-          @click="onFileLoad"
-          class="bg-gray-600 rounded-md w-24 pb-1 hover:bg-gray-700"
-        >
-          load
-        </button>
-        <button
-          @click="pause = !pause"
-          class="bg-gray-600 rounded-md w-24 pb-1 hover:bg-gray-700"
-        >
-          {{ !pause ? "pause" : "continue" }}
-        </button>
-        <div
-          class="bg-gray-600 rounded-md w-[600px] px-2 pb-1 hover:bg-gray-700"
-        >
-          two: {{ two }} three: {{ three }} four: {{ four }} five:
-          {{ five }} six: {{ six }} seven: {{ seven }} eight+:
-          {{ eight }} shardCount: {{ shardCount }}
+      <div class="flex w-full justify-center absolute h-full">
+        <img :src="map_01" class="h-full" />
+      </div>
+      <div class="pt-4">
+        <div class="flex justify-center gap-2 text-green-300">
+          <button
+            @click="fileSave('gems.json', getStorage())"
+            class="bg-green-800 rounded-md w-24 pb-1 hover:bg-green-900 saturate-[0.2]"
+          >
+            save
+          </button>
+          <button
+            @click="onFileLoad"
+            class="bg-green-800 rounded-md w-24 pb-1 hover:bg-green-900 saturate-[0.2]"
+          >
+            load
+          </button>
+          <button
+            @click="pause = !pause"
+            class="bg-green-800 rounded-md w-24 pb-1 hover:bg-green-900 saturate-[0.2]"
+          >
+            {{ !pause ? "pause" : "continue" }}
+          </button>
+          <div
+            class="bg-green-800 rounded-md w-[600px] px-2 pb-1 cursor-default saturate-[0.2]"
+          >
+            two: {{ two }} three: {{ three }} four: {{ four }} five:
+            {{ five }} six: {{ six }} seven: {{ seven }} eight+:
+            {{ eight }} shardCount: {{ shardCount }}
+          </div>
         </div>
       </div>
       <Game
@@ -43,6 +51,8 @@ import fileSave from "~/utils/fileSave"
 import fileLoad from "~/utils/fileLoad"
 import debounce from "~/utils/debounce"
 import timestamp from "~/utils/timestamp"
+import map_01 from "~/assets/map_01.webp"
+import { ARC } from "~/components/constants"
 
 const APP_LOCAL_STORAGE_KEY = "gems"
 const DEBOUNCE_DELAY = 300
@@ -51,7 +61,7 @@ const pause = ref(false)
 const pending = ref(true) // run game only after local storage is loaded
 
 const experience = ref(0)
-const arc = ref(null)
+const arc = ref(ARC.CRYSTAL)
 const two = ref(0)
 const three = ref(0)
 const four = ref(0)

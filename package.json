@@ -10,7 +10,6 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "animejs": "^3.2.2",
     "nuxt": "^3.15.4",
     "vue": "latest",
     "vue-router": "latest"
