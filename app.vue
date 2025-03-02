@@ -5,7 +5,12 @@
   >
     <div class="flex flex-col gap-8 w-full pb-8">
       <div class="flex w-full justify-center absolute h-full">
-        <img :src="map_01" class="h-full" />
+        <img
+          :src="map_01"
+          class="h-full"
+          draggable="false"
+          @dragstart.prevent
+        />
       </div>
       <div class="pt-4">
         <div class="flex justify-center gap-2 text-green-300">
@@ -28,7 +33,7 @@
             {{ !pause ? "pause" : "continue" }}
           </button>
           <div
-            class="bg-green-800 rounded-md w-[600px] px-2 pb-1 cursor-default saturate-[0.2]"
+            class="bg-green-800 rounded-md w-[700px] px-2 pb-1 cursor-default saturate-[0.2]"
           >
             two: {{ two }} three: {{ three }} four: {{ four }} five:
             {{ five }} six: {{ six }} seven: {{ seven }} eight+:
@@ -61,7 +66,7 @@ const pause = ref(false)
 const pending = ref(true) // run game only after local storage is loaded
 
 const experience = ref(0)
-const arc = ref(ARC.CRYSTAL)
+const arc = ref(null)
 const two = ref(0)
 const three = ref(0)
 const four = ref(0)

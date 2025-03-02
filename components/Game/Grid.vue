@@ -10,11 +10,16 @@
     <div
       v-else
       ref="gridRef"
-      class="relative grid aspect-square duration-200"
+      class="relative grid aspect-square duration-200 overflow-hidden"
       :class="{ 'saturate-50 opacity-50': pause }"
       :style="{ 'grid-template-columns': `repeat(${size}, minmax(0, 1fr))` }"
     >
-      <img :src="gridImg" class="rounded-2xl blur-md absolute opacity-50" />
+      <img
+        :src="gridImg"
+        class="rounded-2xl absolute opacity-50"
+        draggable="false"
+        @dragstart.prevent
+      />
       <img
         v-for="i in size ** 2"
         :key="i"
@@ -51,7 +56,7 @@
                   !gem.removing &&
                   (arc !== ARC.CRYSTAL || gem.color !== GEMS.BLUE),
                 'scale-[0.8] brightness-150': id === activeGemId,
-                'scale-[0.9] saturate-[0.4]': gem.cascading,
+                'scale-[0.83] saturate-[0.25]': gem.cascading,
                 'scale-[1.2] opacity-0 rotate-[10deg]': gem.removing,
               },
             ]"
