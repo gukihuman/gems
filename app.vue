@@ -12,7 +12,15 @@
           @dragstart.prevent
         />
       </div>
-      <div class="pt-4">
+      <div class="flex w-full justify-center absolute h-full">
+        <img
+          :src="gridShadow"
+          class="h-full"
+          draggable="false"
+          @dragstart.prevent
+        />
+      </div>
+      <div class="pt-4 z-10">
         <div class="flex justify-center gap-2 text-green-300">
           <button
             @click="fileSave('gems.json', getStorage())"
@@ -33,11 +41,32 @@
             {{ !pause ? "pause" : "continue" }}
           </button>
           <div
-            class="bg-green-800 rounded-md w-[700px] px-2 pb-1 cursor-default saturate-[0.2]"
+            class="bg-green-800 rounded-md w-[650px] pl-2 pb-1 cursor-default saturate-[0.2]"
+            :class="{ 'opacity-0': pending }"
           >
             two: {{ two }} three: {{ three }} four: {{ four }} five:
             {{ five }} six: {{ six }} seven: {{ seven }} eight+:
             {{ eight }} shardCount: {{ shardCount }}
+          </div>
+          <div
+            class="flex gap-2 w-42 items-center"
+            :class="{ 'opacity-0': pending }"
+          >
+            <input
+              id="volume-slider"
+              type="range"
+              min="0"
+              max="0.4"
+              step="0.01"
+              v-model="volume"
+              class="cursor-pointer w-20"
+              @input="debouncedLocalStorageSave"
+            />
+            <label
+              for="volume-slider"
+              class="w-20 font-medium text-gray-400 text-xs"
+              >Volume: {{ Math.round(volume * 250) }}%</label
+            >
           </div>
         </div>
       </div>
@@ -45,6 +74,7 @@
         v-if="!pending"
         :pause="pause"
         :arc="arc"
+        :volume="volume"
         @win="onWin"
         @shard-count="onShardCount"
       />
@@ -57,11 +87,13 @@ import fileLoad from "~/utils/fileLoad"
 import debounce from "~/utils/debounce"
 import timestamp from "~/utils/timestamp"
 import map_01 from "~/assets/map_01.webp"
+import gridShadow from "~/assets/grid_shadow.png"
 import { ARC } from "~/components/constants"
 
 const APP_LOCAL_STORAGE_KEY = "gems"
 const DEBOUNCE_DELAY = 300
 
+const volume = ref(0.2)
 const pause = ref(false)
 const pending = ref(true) // run game only after local storage is loaded
 
@@ -102,6 +134,7 @@ function onShardCount() {
 function injectStorage(storage) {
   experience.value = storage.experience
   // arc.value = storage.arc
+  volume.value = storage.volume || volume.value
   two.value = storage.two || two.value
   three.value = storage.three || three.value
   four.value = storage.four || four.value
@@ -115,6 +148,7 @@ function getStorage() {
   return {
     experience: experience.value,
     arc: arc.value,
+    volume: volume.value,
     two: two.value,
     three: three.value,
     four: four.value,

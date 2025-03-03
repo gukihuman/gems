@@ -28,11 +28,10 @@ const DAMAGE = [2, 3]
 // handle any possible match count from 0 to 10 (max)
 const DAMAGE_MULTIPLIER = [0, 1, 1, 1, 5, 50, 500, 2_500, 5_000, 10_000, 20_000]
 
-const props = defineProps(["pause", "arc"])
+const props = defineProps(["pause", "arc", "volume"])
 const emit = defineEmits(["win", "shard-count"])
 
-const SOUND_VOLUME = 0.3
-const EMIT_SOUND_DELAY = 80
+const EMIT_SOUND_DELAY = 100
 const EMIT_MATCH_DELAY = 300
 const SOUND_MAP = {
   YELLOW:
@@ -112,7 +111,7 @@ function processSoundQueue() {
   }
   isProcessingSoundQueue = true
   const sound = soundQueue.shift()
-  sound.volume = SOUND_VOLUME
+  sound.volume = props.volume
   sound.play().catch((error) => {
     console.error("Error playing sound:", error)
   })
