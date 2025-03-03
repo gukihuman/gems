@@ -58,6 +58,12 @@
                 'scale-[0.8] brightness-150': id === activeGemId,
                 'scale-[0.83] saturate-[0.25]': gem.cascading,
                 'scale-[1.2] opacity-0 rotate-[10deg]': gem.removing,
+                'group-hover:brightness-75 group-hover:scale-[0.95] group-hover:rotate-[-5deg] cursor-not-allowed':
+                  !activeGemId &&
+                  !gem.cascading &&
+                  !gem.removing &&
+                  arc === ARC.CRYSTAL &&
+                  gem.color === GEMS.BLUE,
               },
             ]"
             :style="{
@@ -68,7 +74,7 @@
         </div>
       </div>
     </div>
-    <div class="pt-10 text-gray-400 text-center">{{ formattedTime }}</div>
+    <div class="pt-4 text-gray-400 text-center">{{ formattedTime }}</div>
   </div>
 </template>
 <script setup>
@@ -78,6 +84,7 @@ import debounce from "~/utils/debounce"
 
 import gridImg from "~/assets/grid_warm.png"
 import cell from "~/assets/cell.png"
+
 import yellow from "~/assets/yellow.png"
 import blue from "~/assets/blue.png"
 import green from "~/assets/green.png"

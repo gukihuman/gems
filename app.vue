@@ -3,7 +3,7 @@
     class="flex justify-center h-screen bg-circles"
     style="background-color: #31332d"
   >
-    <div class="flex flex-col gap-8 w-full pb-8">
+    <div class="flex flex-col gap-4 w-full pb-8">
       <div class="flex w-full justify-center absolute h-full">
         <img
           :src="map_01"
@@ -20,7 +20,7 @@
           @dragstart.prevent
         />
       </div>
-      <div class="pt-4 z-10">
+      <div class="flex flex-col pt-4 z-10 gap-2">
         <div class="flex justify-center gap-2 text-green-300">
           <button
             @click="fileSave('gems.json', getStorage())"
@@ -69,6 +69,16 @@
             >
           </div>
         </div>
+        <div class="flex justify-center gap-2 text-green-300">
+          <button
+            v-for="(arc, name) in arcs"
+            :key="`${name}-${arc}`"
+            @click="onChangeArc(arc)"
+            class="bg-green-800 rounded-md w-24 pb-1 hover:bg-green-900 saturate-[0.2]"
+          >
+            {{ name }}
+          </button>
+        </div>
       </div>
       <Game
         v-if="!pending"
@@ -96,6 +106,23 @@ const DEBOUNCE_DELAY = 300
 const volume = ref(0.2)
 const pause = ref(false)
 const pending = ref(true) // run game only after local storage is loaded
+
+const arcs = ref({
+  default: null,
+  aim: ARC.AIM,
+  crystal: ARC.CRYSTAL,
+  boom: ARC.BOOM,
+  miasma: ARC.MIASMA,
+  gambler: ARC.GAMBLER,
+})
+
+function onChangeArc(arcToSet) {
+  arc.value = arcToSet
+  pending.value = true // restart game
+  console.log(pending.value)
+  nextTick(() => (pending.value = false))
+  debouncedLocalStorageSave()
+}
 
 const experience = ref(0)
 const arc = ref(null)
@@ -133,7 +160,7 @@ function onShardCount() {
 }
 function injectStorage(storage) {
   experience.value = storage.experience
-  // arc.value = storage.arc
+  arc.value = storage.arc
   volume.value = storage.volume || volume.value
   two.value = storage.two || two.value
   three.value = storage.three || three.value
